@@ -93,16 +93,11 @@ sub Tvheadend_Request($){
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
-			my $response;
 			my $entries;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
 
-			eval{
-				$response = decode_json($data);
-			} or return $@;
-
-			$entries = $response->{entries};
+			$entries = decode_json($data)->{entries};
 
 			my $channels = $hash->{helper}->{epg}->{channels};
 			for (my $i=0;$i < int(@$entries);$i+=1){
@@ -110,7 +105,7 @@ sub Tvheadend_Request($){
 			}
 
 			$hash->{helper}->{epg}->{count} = @$entries;
-			#RemoveInternalTimer($hash,"Tvheadend_Request");
+			
 			InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
 			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
 			$state = 1;
@@ -135,29 +130,23 @@ sub Tvheadend_Request($){
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
-			my $response;
 			my $entries;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
 
-			eval{
-				$response = decode_json($data);
-			} or return $@;
-
-			$entries = $response->{entries};
+			$entries = decode_json($data)->{entries};
 
 			@$entries = sort {$a->{channelNumber} <=> $b->{channelNumber} ||
 												$a->{start} <=> $b->{start}
 											} @$entries;
 
 			$hash->{helper}->{epg}->{update} = @$entries[0]->{stop};
-
 			for (my $i=0;$i < int(@$entries);$i+=1){
 					$hash->{helper}->{epg}->{update} = @$entries[$i]->{stop} if(@$entries[$i]->{stop} < $hash->{helper}->{epg}->{update});
-					$hash->{helper}->{epg}->{now} = $entries;
 			}
 
-			#RemoveInternalTimer($hash,"Tvheadend_Request");
+			$hash->{helper}->{epg}->{now} = $entries;
+
 			InternalTimer(gettimeofday(),"Tvheadend_Request",$hash) if ($state == 1);
 			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
 			$state = 2;
@@ -182,23 +171,17 @@ sub Tvheadend_Request($){
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
-			my $response;
 			my $entries;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
 
-			eval{
-				$response = decode_json($data);
-			} or return $@;
-
-			$entries = $response->{entries};
+			$entries = decode_json($data)->{entries};
 
 			my $entriesNext = $hash->{helper}->{epg}->{next};
 			@$entriesNext[$param->{id}] = @$entries[0];
 
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
 			if(scalar(grep {defined $_} @$entriesNext) == $hash->{helper}->{epg}->{count}){
-				#RemoveInternalTimer($hash,"Tvheadend_Request");
 				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 3");
 				$state = 3;
