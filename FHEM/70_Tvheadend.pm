@@ -31,6 +31,7 @@ sub Tvheadend_Initialize($) {
 					"port " .
 					"user " .
 					"password " .
+					"timeout " .
           $readingFnAttributes;
 
 }
@@ -87,6 +88,7 @@ sub Tvheadend_Notify($$){
 sub Tvheadend_Request($){
 	my ($hash) = @_;
 
+	## GET CHANNELS
 	if($state == 0){
 
 		$hash->{helper}->{http}->{callback} = sub{
@@ -105,7 +107,7 @@ sub Tvheadend_Request($){
 			}
 
 			$hash->{helper}->{epg}->{count} = @$entries;
-			
+
 			InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
 			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
 			$state = 1;
@@ -124,6 +126,8 @@ sub Tvheadend_Request($){
 		&Tvheadend_HttpGet($hash);
 
 		return;
+
+	#GET NOW
 	}elsif($state == 1){
 
 		$hash->{helper}->{http}->{callback} = sub{
@@ -165,6 +169,8 @@ sub Tvheadend_Request($){
 		&Tvheadend_HttpGet($hash);
 
 		return;
+
+	## GET NEXT
 	}elsif($state == 2){
 
 		$hash->{helper}->{http}->{callback} = sub{
@@ -205,6 +211,8 @@ sub Tvheadend_Request($){
 			&Tvheadend_HttpGet($hash);
 		}
 		return;
+
+	## SET READINGS
 	}elsif($state == 3){
 		my $update = $hash->{helper}->{epg}->{update};
 		my $entriesNow = $hash->{helper}->{epg}->{now};
@@ -244,7 +252,7 @@ sub Tvheadend_HttpGet($){
 		{
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
-				timeout    => "20",
+				timeout    => AttrVal($hash->{NAME},"timeout",20),
 				user			 => AttrVal($hash->{NAME},"user",undef),
 				pwd				 => AttrVal($hash->{NAME},"password",undef),
 				noshutdown => "1",
