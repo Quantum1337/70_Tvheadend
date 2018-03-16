@@ -87,8 +87,6 @@ sub Tvheadend_Notify($$){
 sub Tvheadend_Request($){
 	my ($hash) = @_;
 
-	$state = 0 if(!$hash->{helper}->{epg}->{count});
-
 	if($state == 0){
 
 		$hash->{helper}->{http}->{callback} = sub{
@@ -98,7 +96,7 @@ sub Tvheadend_Request($){
 			my $response;
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
 
 			eval{
 				$response = decode_json($data);
@@ -119,7 +117,7 @@ sub Tvheadend_Request($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get Channels");
-		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef))
+		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
 		my @channels = ();
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
@@ -140,7 +138,7 @@ sub Tvheadend_Request($){
 			my $response;
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
 
 			eval{
 				$response = decode_json($data);
@@ -167,7 +165,7 @@ sub Tvheadend_Request($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Now");
-		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef))
+		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
 		my $count = $hash->{helper}->{epg}->{count};
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
@@ -187,7 +185,7 @@ sub Tvheadend_Request($){
 			my $response;
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
 
 			eval{
 				$response = decode_json($data);
@@ -208,7 +206,7 @@ sub Tvheadend_Request($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Next");
-		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef))
+		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
 		my @entriesNext = ();
 		my $entries = $hash->{helper}->{epg}->{now};
@@ -251,7 +249,7 @@ sub Tvheadend_Request($){
 		Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Next update: ".  strftime("%H:%M:%S",localtime($update)));
 		RemoveInternalTimer($hash,"Tvheadend_Request");
 		InternalTimer($update + 10,"Tvheadend_Request",$hash);
-		$state = 1;
+		$state = 0;
 	}
 
 }
@@ -264,8 +262,8 @@ sub Tvheadend_HttpGet($){
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
 				timeout    => "20",
-				user			 => AttrVal($hash->{NAME},"user",undef);,
-				pwd				 => AttrVal($hash->{NAME},"password",undef);,
+				user			 => AttrVal($hash->{NAME},"user",undef),
+				pwd				 => AttrVal($hash->{NAME},"password",undef),
 				noshutdown => "1",
 				hash			 => $hash,
 				id				 => $hash->{helper}->{http}->{id},
