@@ -140,33 +140,45 @@ sub Tvheadend_Request($){
 
 			$entries = decode_json($data)->{entries};
 
-			@$entries = sort {$a->{channelNumber} <=> $b->{channelNumber} ||
-												$a->{start} <=> $b->{start}
-											} @$entries;
+		 	my $entriesNow = $hash->{helper}->{epg}->{now};
+		 	@$entriesNow[$param->{id}] = @$entries[0];
 
-			$hash->{helper}->{epg}->{update} = @$entries[0]->{stop};
-			for (my $i=0;$i < int(@$entries);$i+=1){
-					$hash->{helper}->{epg}->{update} = @$entries[$i]->{stop} if(@$entries[$i]->{stop} < $hash->{helper}->{epg}->{update});
+			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
+			if(scalar(grep {defined $_} @$entriesNow) == $hash->{helper}->{epg}->{count}){
+
+				@$entriesNow = sort {$a->{channelNumber} <=> $b->{channelNumber} ||
+														 $a->{start} <=> $b->{start}
+														}@$entriesNow;
+
+				$hash->{helper}->{epg}->{update} = @$entriesNow[0]->{stop};
+				for (my $i=0;$i < int(@$entriesNow);$i+=1){
+						$hash->{helper}->{epg}->{update} = @$entriesNow[$i]->{stop} if(@$entriesNow[$i]->{stop} < $hash->{helper}->{epg}->{update});
+				}
+
+				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash) if ($state == 1);
+				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
+				$state = 2;
 			}
-
-			$hash->{helper}->{epg}->{now} = $entries;
-
-			InternalTimer(gettimeofday(),"Tvheadend_Request",$hash) if ($state == 1);
-			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
-			$state = 2;
 
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Now");
 		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
-		my $count = $hash->{helper}->{epg}->{count};
+		#my $count = $hash->{helper}->{epg}->{count};
+		my @entriesNow = ();
+		my $channels = $hash->{helper}->{epg}->{channels};
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
 		my $port = AttrVal($hash->{NAME},"port","9981");
 
-		$hash->{helper}->{http}->{id} = "";
-		$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=$count";
-		&Tvheadend_HttpGet($hash);
+		$hash->{helper}->{epg}->{now} = \@entriesNow;
+
+		for (my $i=0;$i < int(@$channels);$i+=1){
+			$hash->{helper}->{http}->{id} = $i;
+			@$channels[$i] =~ s/\x20/\%20/g;
+			$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".@$channels[$i];
+			&Tvheadend_HttpGet($hash);
+		}
 
 		return;
 
@@ -252,7 +264,7 @@ sub Tvheadend_HttpGet($){
 		{
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
-				timeout    => AttrVal($hash->{NAME},"timeout",20),
+				timeout    => AttrVal($hash->{NAME},"timeout","20"),
 				user			 => AttrVal($hash->{NAME},"user",undef),
 				pwd				 => AttrVal($hash->{NAME},"password",undef),
 				noshutdown => "1",
