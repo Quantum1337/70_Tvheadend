@@ -62,12 +62,6 @@ sub Tvheadend_Set($$$) {
 	my ($hash, $name, $opt, @args) = @_;
 
 	if($opt eq "reread"){
-
-		$hash->{helper}->{http}->{ip} = AttrVal($hash->{NAME},"ip",undef);
-		$hash->{helper}->{http}->{port} = AttrVal($hash->{NAME},"port",undef);
-		$hash->{helper}->{http}->{user} = AttrVal($hash->{NAME},"user",undef);
-		$hash->{helper}->{http}->{password} = AttrVal($hash->{NAME},"password",undef);
-
 		&Tvheadend_Request($hash);
 	}else{
 		my @cList = keys %Tvheadend_sets;
@@ -125,12 +119,13 @@ sub Tvheadend_Request($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get Channels");
+		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef))
 
 		my @channels = ();
-		my $ip = $hash->{helper}->{http}->{ip};
-		my $port = $hash->{helper}->{http}->{port};
-		$hash->{helper}->{epg}->{channels} = \@channels;
+		my $ip = AttrVal($hash->{NAME},"ip",undef);
+		my $port = AttrVal($hash->{NAME},"port","9981");
 
+		$hash->{helper}->{epg}->{channels} = \@channels;
 		$hash->{helper}->{http}->{id} = "";
 		$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/channel/list";
 		&Tvheadend_HttpGet($hash);
@@ -172,10 +167,11 @@ sub Tvheadend_Request($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Now");
+		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef))
 
 		my $count = $hash->{helper}->{epg}->{count};
-		my $ip = $hash->{helper}->{http}->{ip};
-		my $port = $hash->{helper}->{http}->{port};
+		my $ip = AttrVal($hash->{NAME},"ip",undef);
+		my $port = AttrVal($hash->{NAME},"port","9981");
 
 		$hash->{helper}->{http}->{id} = "";
 		$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=$count";
@@ -212,12 +208,13 @@ sub Tvheadend_Request($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Next");
+		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef))
 
 		my @entriesNext = ();
 		my $entries = $hash->{helper}->{epg}->{now};
 		my $count = $hash->{helper}->{epg}->{count};
-		my $ip = $hash->{helper}->{http}->{ip};
-		my $port = $hash->{helper}->{http}->{port};
+		my $ip = AttrVal($hash->{NAME},"ip",undef);
+		my $port = AttrVal($hash->{NAME},"port","9981");
 
 		$hash->{helper}->{epg}->{next} = \@entriesNext;
 
@@ -259,7 +256,6 @@ sub Tvheadend_Request($){
 
 }
 
-
 sub Tvheadend_HttpGet($){
 	my ($hash) = @_;
 
@@ -268,8 +264,8 @@ sub Tvheadend_HttpGet($){
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
 				timeout    => "20",
-				user			 => $hash->{helper}->{http}->{user},
-				pwd				 => $hash->{helper}->{http}->{password},
+				user			 => AttrVal($hash->{NAME},"user",undef);,
+				pwd				 => AttrVal($hash->{NAME},"password",undef);,
 				noshutdown => "1",
 				hash			 => $hash,
 				id				 => $hash->{helper}->{http}->{id},
