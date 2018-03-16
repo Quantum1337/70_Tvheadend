@@ -233,19 +233,19 @@ sub Tvheadend_Request($){
 
 		readingsBeginUpdate($hash);
 		for (my $i=0;$i < int(@$entriesNow);$i+=1){
-				readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."Name", @$entriesNow[$i]->{channelName});
-				readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."Number", @$entriesNow[$i]->{channelNumber});
-				readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."TitleNow", @$entriesNow[$i]->{title});
-				readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."StartNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{start})));
-				readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."EndNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{stop})));
-				readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."DescriptionNow", @$entriesNow[$i]->{description});
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."Name", encode('UTF-8',@$entriesNow[$i]->{channelName}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."Number", encode('UTF-8',@$entriesNow[$i]->{channelNumber}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."TitleNow", encode('UTF-8',@$entriesNow[$i]->{title}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."StartNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{start}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."EndNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{stop}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."DescriptionNow", encode('UTF-8',@$entriesNow[$i]->{description}));
 		}
 
 		for (my $i=0;$i < int(@$entriesNext);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."DescriptionNext", @$entriesNext[$i]->{description});
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."TitleNext", @$entriesNext[$i]->{title});
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."StartNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{start})));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."EndNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{stop})));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."DescriptionNext", encode('UTF-8',@$entriesNext[$i]->{description}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."TitleNext", encode('UTF-8',@$entriesNext[$i]->{title}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."StartNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{start}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."EndNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{stop}))));
 		}
 		readingsEndUpdate($hash, 1);
 
