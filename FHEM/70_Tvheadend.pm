@@ -29,7 +29,7 @@ sub Tvheadend_Initialize($) {
 					"primeTime " .
 					"ip " .
 					"port " .
-					"user " .
+					"username " .
 					"password " .
 					"timeout " .
           $readingFnAttributes;
@@ -273,7 +273,7 @@ sub Tvheadend_HttpGet($){
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
 				timeout    => AttrVal($hash->{NAME},"timeout","20"),
-				user			 => AttrVal($hash->{NAME},"user",undef),
+				user			 => AttrVal($hash->{NAME},"username",undef),
 				pwd				 => AttrVal($hash->{NAME},"password",undef),
 				noshutdown => "1",
 				hash			 => $hash,
