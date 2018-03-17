@@ -36,6 +36,7 @@ sub Tvheadend_Initialize($) {
 					"username " .
 					"password " .
 					"timeout " .
+					"epg:yes,no " .
           $readingFnAttributes;
 
 }
@@ -43,6 +44,11 @@ sub Tvheadend_Initialize($) {
 sub Tvheadend_Define($$$) {
 	my ($hash, $def) = @_;
 	$state = 0;
+
+	if($init_done && AttrVal($hash->{NAME},"epg","no") eq "yes"){
+		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
+	}
+
 	$hash->{STATE} = "Initialized";
 	return;
 }
@@ -68,7 +74,7 @@ sub Tvheadend_Set($$$) {
 	my ($hash, $name, $opt, @args) = @_;
 
 	if($opt eq "EPG"){
-		&Tvheadend_EPG($hash);
+		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 	}else{
 		my @cList = keys %Tvheadend_sets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
@@ -111,6 +117,15 @@ sub Tvheadend_Attr(@) {
 sub Tvheadend_Notify($$){
 	my ($own_hash, $dev_hash) = @_;
 
+	if(IsDisabled($own_hash->{NAME})){
+		return ""
+	}
+
+	my $events = deviceEvents($dev_hash, 1);
+
+	if($dev_hash->{NAME} eq "global" && grep(m/^INITIALIZED|REREADCFG$/, @{$events}) && AttrVal($own_hash->{NAME},"epg","no") eq "yes"){
+		InternalTimer(gettimeofday(),"Tvheadend_EPG",$own_hash);
+	}
 
 	return
 }
@@ -319,11 +334,11 @@ sub Tvheadend_queryEPG($$){
 	$entries = decode_json($data)->{entries};
 	($response = "No Results",return $response) if(!defined @$entries[0]);
 
-	$response = @$entries[0]->{channelName} ."\\n".
+	$response = @$entries[0]->{channelName} ."\n".
 							strftime("%d-%m-%Y %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
-							strftime("%d-%m-%Y %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{stop})))."\\n".
-							encode('UTF-8',@$entries[0]->{title})."\\n".
-							encode('UTF-8',@$entries[0]->{summary}). "\\n".
+							strftime("%d-%m-%Y %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{stop})))."\n".
+							encode('UTF-8',@$entries[0]->{title})."\n".
+							encode('UTF-8',@$entries[0]->{summary}). "\n".
 							"ID: " . @$entries[0]->{eventId};
 
 	return $response;
