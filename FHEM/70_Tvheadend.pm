@@ -88,6 +88,8 @@ sub Tvheadend_Notify($$){
 sub Tvheadend_Request($){
 	my ($hash) = @_;
 
+	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Busy, leaving..."),return) if($hash->{helper}->{http}->{busy} eq "1");
+
 	## GET CHANNELS
 	if($state == 0){
 
@@ -108,6 +110,7 @@ sub Tvheadend_Request($){
 
 			$hash->{helper}->{epg}->{count} = @$entries;
 			$hash->{helper}->{epg}->{channels} = \@channels;
+			$hash->{helper}->{http}->{busy} = "0";
 
 			InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
 			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
@@ -122,6 +125,7 @@ sub Tvheadend_Request($){
 
 		$hash->{helper}->{http}->{id} = "";
 		$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/channel/list";
+		$hash->{helper}->{http}->{busy} = "1";
 		&Tvheadend_HttpGet($hash);
 
 		return;
@@ -157,6 +161,7 @@ sub Tvheadend_Request($){
 						$hash->{helper}->{epg}->{update} = @entriesNow[$i]->{stop} if(@entriesNow[$i]->{stop} < $hash->{helper}->{epg}->{update});
 				}
 
+				$hash->{helper}->{http}->{busy} = "0";
 				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash) if ($state == 1);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
 				$state = 2;
@@ -171,6 +176,7 @@ sub Tvheadend_Request($){
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
 		my $port = AttrVal($hash->{NAME},"port","9981");
 
+		$hash->{helper}->{http}->{busy} = "1";
 		for (my $i=0;$i < int(@$channels);$i+=1){
 			$hash->{helper}->{http}->{id} = $i;
 			@$channels[$i] =~ s/\x20/\%20/g;
@@ -202,6 +208,8 @@ sub Tvheadend_Request($){
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
 			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}->{epg}->{count}){
 				$hash->{helper}->{epg}->{next} = \@entriesNext;
+
+				$hash->{helper}->{http}->{busy} = "0";
 				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 3");
 				$state = 3;
@@ -216,6 +224,7 @@ sub Tvheadend_Request($){
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
 		my $port = AttrVal($hash->{NAME},"port","9981");
 
+		$hash->{helper}->{http}->{busy} = "1";
 		for (my $i=0;$i < int($count);$i+=1){
 			$hash->{helper}->{http}->{id} = $i;
 			$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".@$entries[$i]->{nextEventId};
