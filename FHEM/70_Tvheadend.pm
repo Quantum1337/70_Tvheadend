@@ -142,6 +142,7 @@ sub Tvheadend_Request($){
 			$entries = decode_json($data)->{entries};
 
 		 	@entriesNow[$param->{id}] = @$entries[0];
+			@entriesNow[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{description});
 
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
 			if(scalar(grep {defined $_} @entriesNow) == $hash->{helper}->{epg}->{count}){
@@ -195,6 +196,8 @@ sub Tvheadend_Request($){
 			$entries = decode_json($data)->{entries};
 
 			@entriesNext[$param->{id}] = @$entries[0];
+			@entriesNext[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{description});
+
 
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
 			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}->{epg}->{count}){
