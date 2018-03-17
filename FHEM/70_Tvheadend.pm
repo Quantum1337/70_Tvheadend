@@ -12,10 +12,11 @@ my $state = 0;
 
 my %Tvheadend_sets = (
 	"EPG:noArg" => "",
+	"DVRcreate" => "",
 );
 
 my %Tvheadend_gets = (
-	"queryEPG" => "",
+	"EPGquery" => "",
 );
 
 sub Tvheadend_Initialize($) {
@@ -75,6 +76,8 @@ sub Tvheadend_Set($$$) {
 
 	if($opt eq "EPG"){
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
+	}elsif($opt eq "DVRcreate"){
+		&Tvheadend_DVRcreate($hash,@args);
 	}else{
 		my @cList = keys %Tvheadend_sets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
@@ -85,8 +88,8 @@ sub Tvheadend_Set($$$) {
 sub Tvheadend_Get($$$) {
 	my ($hash, $name, $opt, @args) = @_;
 
-	if($opt eq "queryEPG"){
-		return &Tvheadend_queryEPG($hash,@args);
+	if($opt eq "EPGquery"){
+		return &Tvheadend_EPGquery($hash,@args);
 	}else{
 		my @cList = keys %Tvheadend_gets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
@@ -313,7 +316,7 @@ sub Tvheadend_EPG($){
 
 }
 
-sub Tvheadend_queryEPG($$){
+sub Tvheadend_EPGquery($$){
 	my ($hash,@args) = @_;
 
 	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef));
@@ -335,14 +338,56 @@ sub Tvheadend_queryEPG($$){
 	($response = "No Results",return $response) if(!defined @$entries[0]);
 
 	$response = @$entries[0]->{channelName} ."\n".
-							strftime("%d.%m %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
-							strftime("%d.%m %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{stop})))."\n".
+							strftime("%d.%m [%H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
+							strftime("%H:%M:%S]",localtime(encode('UTF-8',@$entries[0]->{stop})))."\n".
 							encode('UTF-8',@$entries[0]->{title})."\n".
 							encode('UTF-8',@$entries[0]->{summary}). "\n".
 							"ID: " . @$entries[0]->{eventId};
 
 	return $response;
 
+}
+
+sub Tvheadend_DVRcreate($$){
+	my ($hash,@args) = @_;
+
+	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef));
+
+	my $ip = AttrVal($hash->{NAME},"ip",undef);
+	my $port = AttrVal($hash->{NAME},"port","9981");
+	my $entries;
+	my $response = "";
+
+	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".@args[0];
+	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
+	return $err if($err);
+	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
+
+	$entries = decode_json($data)->{entries};
+	($response = "EventId is not valid",return $response) if(!defined @$entries[0]);
+
+	my %record = (
+    "start"  => @$entries[0]->{start},
+    "stop" => @$entries[0]->{stop},
+		"title"  => {
+			"ger" => @$entries[0]->{title},
+		},
+    "subtitle"  => {
+			"ger" => @$entries[0]->{subtitle},
+		},
+		"description"  => {
+			"ger" => @$entries[0]->{description},
+		},
+		"channelname"  => @$entries[0]->{channelName},
+	);
+
+	my $jasonData = encode_json(\%record);
+
+	$jasonData =~ s/\x20/\%20/g;
+	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/dvr/entry/create?conf=".$jasonData;
+	($err, $data) = &Tvheadend_HttpGetBlocking($hash);
+
+	return $data;
 }
 
 sub Tvheadend_HttpGet($){
@@ -369,13 +414,12 @@ sub Tvheadend_HttpGetBlocking($){
 	HttpUtils_BlockingGet(
 		{
 				method     => "GET",
+				header     => "User-Agent: Mozilla/1.22",
 				url        => $hash->{helper}->{http}->{url},
 				timeout    => AttrVal($hash->{NAME},"timeout","20"),
 				user			 => AttrVal($hash->{NAME},"username",undef),
 				pwd				 => AttrVal($hash->{NAME},"password",undef),
 				noshutdown => "1",
-				hash			 => $hash,
-				id				 => $hash->{helper}->{http}->{id},
 		});
 
 }
