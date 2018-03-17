@@ -96,17 +96,18 @@ sub Tvheadend_Request($){
 
 			my $hash = $param->{hash};
 			my $entries;
+			my @channels = ();
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
 
 			$entries = decode_json($data)->{entries};
 
-			my $channels = $hash->{helper}->{epg}->{channels};
 			for (my $i=0;$i < int(@$entries);$i+=1){
-				@$channels[$i] = @$entries[$i]->{val};
+				@channels[$i] = @$entries[$i]->{val};
 			}
 
 			$hash->{helper}->{epg}->{count} = @$entries;
+			$hash->{helper}->{epg}->{channels} = \@channels;
 
 			InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
 			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
@@ -116,11 +117,9 @@ sub Tvheadend_Request($){
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get Channels");
 		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
-		my @channels = ();
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
 		my $port = AttrVal($hash->{NAME},"port","9981");
 
-		$hash->{helper}->{epg}->{channels} = \@channels;
 		$hash->{helper}->{http}->{id} = "";
 		$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/channel/list";
 		&Tvheadend_HttpGet($hash);
@@ -129,6 +128,8 @@ sub Tvheadend_Request($){
 
 	#GET NOW
 	}elsif($state == 1){
+
+		my @entriesNow = ();
 
 		$hash->{helper}->{http}->{callback} = sub{
 			my ($param, $err, $data) = @_;
@@ -140,19 +141,19 @@ sub Tvheadend_Request($){
 
 			$entries = decode_json($data)->{entries};
 
-		 	my $entriesNow = $hash->{helper}->{epg}->{now};
-		 	@$entriesNow[$param->{id}] = @$entries[0];
+		 	@entriesNow[$param->{id}] = @$entries[0];
 
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
-			if(scalar(grep {defined $_} @$entriesNow) == $hash->{helper}->{epg}->{count}){
+			if(scalar(grep {defined $_} @entriesNow) == $hash->{helper}->{epg}->{count}){
 
-				@$entriesNow = sort {$a->{channelNumber} <=> $b->{channelNumber} ||
+				@entriesNow = sort {$a->{channelNumber} <=> $b->{channelNumber} ||
 														 $a->{start} <=> $b->{start}
-														}@$entriesNow;
+														}@entriesNow;
+				$hash->{helper}->{epg}->{now} = \@entriesNow;
 
-				$hash->{helper}->{epg}->{update} = @$entriesNow[0]->{stop};
-				for (my $i=0;$i < int(@$entriesNow);$i+=1){
-						$hash->{helper}->{epg}->{update} = @$entriesNow[$i]->{stop} if(@$entriesNow[$i]->{stop} < $hash->{helper}->{epg}->{update});
+				$hash->{helper}->{epg}->{update} = @entriesNow[0]->{stop};
+				for (my $i=0;$i < int(@entriesNow);$i+=1){
+						$hash->{helper}->{epg}->{update} = @entriesNow[$i]->{stop} if(@entriesNow[$i]->{stop} < $hash->{helper}->{epg}->{update});
 				}
 
 				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash) if ($state == 1);
@@ -165,13 +166,9 @@ sub Tvheadend_Request($){
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Now");
 		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
-		#my $count = $hash->{helper}->{epg}->{count};
-		my @entriesNow = ();
 		my $channels = $hash->{helper}->{epg}->{channels};
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
 		my $port = AttrVal($hash->{NAME},"port","9981");
-
-		$hash->{helper}->{epg}->{now} = \@entriesNow;
 
 		for (my $i=0;$i < int(@$channels);$i+=1){
 			$hash->{helper}->{http}->{id} = $i;
@@ -185,6 +182,8 @@ sub Tvheadend_Request($){
 	## GET NEXT
 	}elsif($state == 2){
 
+		my @entriesNext = ();
+
 		$hash->{helper}->{http}->{callback} = sub{
 			my ($param, $err, $data) = @_;
 
@@ -195,11 +194,11 @@ sub Tvheadend_Request($){
 
 			$entries = decode_json($data)->{entries};
 
-			my $entriesNext = $hash->{helper}->{epg}->{next};
-			@$entriesNext[$param->{id}] = @$entries[0];
+			@entriesNext[$param->{id}] = @$entries[0];
 
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
-			if(scalar(grep {defined $_} @$entriesNext) == $hash->{helper}->{epg}->{count}){
+			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}->{epg}->{count}){
+				$hash->{helper}->{epg}->{next} = \@entriesNext;
 				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 3");
 				$state = 3;
@@ -209,13 +208,10 @@ sub Tvheadend_Request($){
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Next");
 		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
-		my @entriesNext = ();
 		my $entries = $hash->{helper}->{epg}->{now};
 		my $count = $hash->{helper}->{epg}->{count};
 		my $ip = AttrVal($hash->{NAME},"ip",undef);
 		my $port = AttrVal($hash->{NAME},"port","9981");
-
-		$hash->{helper}->{epg}->{next} = \@entriesNext;
 
 		for (my $i=0;$i < int($count);$i+=1){
 			$hash->{helper}->{http}->{id} = $i;
