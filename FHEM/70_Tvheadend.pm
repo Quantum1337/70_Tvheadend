@@ -8,11 +8,14 @@ use HTML::Entities;
 use utf8;
 use JSON;
 
-#my $channelCount = "";
 my $state = 0;
 
 my %Tvheadend_sets = (
-	"reread:noArg" => "",
+	"EPG:noArg" => "",
+);
+
+my %Tvheadend_gets = (
+	"queryEPG" => "",
 );
 
 sub Tvheadend_Initialize($) {
@@ -21,6 +24,7 @@ sub Tvheadend_Initialize($) {
     $hash->{DefFn}      = 'Tvheadend_Define';
     $hash->{UndefFn}    = 'Tvheadend_Undef';
     $hash->{SetFn}      = 'Tvheadend_Set';
+    $hash->{GetFn}      = 'Tvheadend_Get';
     $hash->{ShutdownFn} = 'Tvheadend_Shutdown';
     $hash->{AttrFn}     = 'Tvheadend_Attr';
     $hash->{NotifyFn}   = 'Tvheadend_Notify';
@@ -39,13 +43,14 @@ sub Tvheadend_Initialize($) {
 sub Tvheadend_Define($$$) {
 	my ($hash, $def) = @_;
 	$state = 0;
+	$hash->{STATE} = "Initialized";
 	return;
 }
 
 sub Tvheadend_Undef($$) {
 	my ($hash, $arg) = @_;
 
-	RemoveInternalTimer($hash,"Tvheadend_Request");
+	RemoveInternalTimer($hash,"Tvheadend_EPG");
 
 	return undef;
 }
@@ -53,7 +58,7 @@ sub Tvheadend_Undef($$) {
 sub Tvheadend_Shutdown($){
 	my($hash) = @_;
 
-	RemoveInternalTimer($hash,"Tvheadend_Request");
+	RemoveInternalTimer($hash,"Tvheadend_EPG");
 
 	return;
 
@@ -62,10 +67,22 @@ sub Tvheadend_Shutdown($){
 sub Tvheadend_Set($$$) {
 	my ($hash, $name, $opt, @args) = @_;
 
-	if($opt eq "reread"){
-		&Tvheadend_Request($hash);
+	if($opt eq "EPG"){
+		&Tvheadend_EPG($hash);
 	}else{
 		my @cList = keys %Tvheadend_sets;
+		return "Unknown command $opt, choose one of " . join(" ", @cList);
+	}
+
+}
+
+sub Tvheadend_Get($$$) {
+	my ($hash, $name, $opt, @args) = @_;
+
+	if($opt eq "queryEPG"){
+		return &Tvheadend_queryEPG($hash,@args);
+	}else{
+		my @cList = keys %Tvheadend_gets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
 	}
 
@@ -98,7 +115,7 @@ sub Tvheadend_Notify($$){
 	return
 }
 
-sub Tvheadend_Request($){
+sub Tvheadend_EPG($){
 	my ($hash) = @_;
 
 	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Busy, leaving..."),return) if($hash->{helper}->{http}->{busy} eq "1");
@@ -126,7 +143,7 @@ sub Tvheadend_Request($){
 			$hash->{helper}->{epg}->{channels} = \@channels;
 			$hash->{helper}->{http}->{busy} = "0";
 
-			InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
+			InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
 			$state = 1;
 		};
@@ -177,7 +194,7 @@ sub Tvheadend_Request($){
 				}
 
 				$hash->{helper}->{http}->{busy} = "0";
-				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash) if ($state == 1);
+				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash) if ($state == 1);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
 				$state = 2;
 			}
@@ -226,7 +243,7 @@ sub Tvheadend_Request($){
 				$hash->{helper}->{epg}->{next} = \@entriesNext;
 
 				$hash->{helper}->{http}->{busy} = "0";
-				InternalTimer(gettimeofday(),"Tvheadend_Request",$hash);
+				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 3");
 				$state = 3;
 			}
@@ -274,10 +291,42 @@ sub Tvheadend_Request($){
 		readingsEndUpdate($hash, 1);
 
 		Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Next update: ".  strftime("%H:%M:%S",localtime($update)));
-		RemoveInternalTimer($hash,"Tvheadend_Request");
-		InternalTimer($update + 10,"Tvheadend_Request",$hash);
+		RemoveInternalTimer($hash,"Tvheadend_EPG");
+		InternalTimer($update + 10,"Tvheadend_EPG",$hash);
 		$state = 0;
 	}
+
+}
+
+sub Tvheadend_queryEPG($$){
+	my ($hash,@args) = @_;
+
+	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef));
+
+	my $ip = AttrVal($hash->{NAME},"ip",undef);
+	my $port = AttrVal($hash->{NAME},"port","9981");
+	my $arg = join("%20", @args);
+	my $entries;
+	my $response = "";
+
+	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&title=$arg";
+
+	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
+	return $err if($err);
+	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
+
+
+	$entries = decode_json($data)->{entries};
+	($response = "No Results",return $response) if(!defined @$entries[0]);
+
+	$response = @$entries[0]->{channelName} ."\\n".
+							strftime("%d-%m-%Y %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
+							strftime("%d-%m-%Y %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{stop})))."\\n".
+							encode('UTF-8',@$entries[0]->{title})."\\n".
+							encode('UTF-8',@$entries[0]->{summary}). "\\n".
+							"ID: " . @$entries[0]->{eventId};
+
+	return $response;
 
 }
 
@@ -295,6 +344,23 @@ sub Tvheadend_HttpGet($){
 				hash			 => $hash,
 				id				 => $hash->{helper}->{http}->{id},
 				callback   => $hash->{helper}->{http}->{callback}
+		});
+
+}
+
+sub Tvheadend_HttpGetBlocking($){
+	my ($hash) = @_;
+
+	HttpUtils_BlockingGet(
+		{
+				method     => "GET",
+				url        => $hash->{helper}->{http}->{url},
+				timeout    => AttrVal($hash->{NAME},"timeout","20"),
+				user			 => AttrVal($hash->{NAME},"username",undef),
+				pwd				 => AttrVal($hash->{NAME},"password",undef),
+				noshutdown => "1",
+				hash			 => $hash,
+				id				 => $hash->{helper}->{http}->{id},
 		});
 
 }
