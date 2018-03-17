@@ -74,6 +74,19 @@ sub Tvheadend_Set($$$) {
 sub Tvheadend_Attr(@) {
 	my ($cmd,$name,$attr_name,$attr_value) = @_;
 
+	if($cmd eq "set") {
+
+      if($attr_name eq "ip") {
+				return "Invalid argument $attr_value to $attr_name. Must be a valid ip adress." if($attr_value !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/)
+			}
+			if($attr_name eq "port") {
+				return "Invalid argument $attr_value to $attr_name. Must be a valid port." if($attr_value !~ /^[0-9]+$/)
+			}
+
+	}elsif($cmd eq "del"){
+
+
+	}
 
 	return undef
 }
@@ -100,7 +113,9 @@ sub Tvheadend_Request($){
 			my $entries;
 			my @channels = ();
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
+
 
 			$entries = decode_json($data)->{entries};
 
@@ -141,7 +156,7 @@ sub Tvheadend_Request($){
 			my $hash = $param->{hash};
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 
 			$entries = decode_json($data)->{entries};
 
@@ -197,7 +212,7 @@ sub Tvheadend_Request($){
 			my $hash = $param->{hash};
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 
 			$entries = decode_json($data)->{entries};
 
