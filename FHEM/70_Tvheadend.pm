@@ -116,7 +116,6 @@ sub Tvheadend_Request($){
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
 
-
 			$entries = decode_json($data)->{entries};
 
 			for (my $i=0;$i < int(@$entries);$i+=1){
@@ -157,6 +156,7 @@ sub Tvheadend_Request($){
 			my $entries;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
 
 			$entries = decode_json($data)->{entries};
 
@@ -213,6 +213,7 @@ sub Tvheadend_Request($){
 			my $entries;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
 
 			$entries = decode_json($data)->{entries};
 
