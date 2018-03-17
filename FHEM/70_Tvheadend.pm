@@ -335,8 +335,8 @@ sub Tvheadend_queryEPG($$){
 	($response = "No Results",return $response) if(!defined @$entries[0]);
 
 	$response = @$entries[0]->{channelName} ."\n".
-							strftime("%d-%m-%Y %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
-							strftime("%d-%m-%Y %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{stop})))."\n".
+							strftime("%d.%m %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
+							strftime("%d.%m %H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{stop})))."\n".
 							encode('UTF-8',@$entries[0]->{title})."\n".
 							encode('UTF-8',@$entries[0]->{summary}). "\n".
 							"ID: " . @$entries[0]->{eventId};
