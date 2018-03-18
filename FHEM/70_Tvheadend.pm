@@ -12,11 +12,11 @@ my $state = 0;
 
 my %Tvheadend_sets = (
 	"EPG:noArg" => "",
-	"DVRcreate" => "",
+	"DVREntryCreate" => "",
 );
 
 my %Tvheadend_gets = (
-	"EPGquery" => "",
+	"EPGQuery" => "",
 );
 
 sub Tvheadend_Initialize($) {
@@ -76,8 +76,8 @@ sub Tvheadend_Set($$$) {
 
 	if($opt eq "EPG"){
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
-	}elsif($opt eq "DVRcreate"){
-		&Tvheadend_DVRcreate($hash,@args);
+	}elsif($opt eq "DVREntryCreate"){
+		&Tvheadend_DVREntryCreate($hash,@args);
 	}else{
 		my @cList = keys %Tvheadend_sets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
@@ -88,8 +88,8 @@ sub Tvheadend_Set($$$) {
 sub Tvheadend_Get($$$) {
 	my ($hash, $name, $opt, @args) = @_;
 
-	if($opt eq "EPGquery"){
-		return &Tvheadend_EPGquery($hash,@args);
+	if($opt eq "EPGQuery"){
+		return &Tvheadend_EPGQuery($hash,@args);
 	}else{
 		my @cList = keys %Tvheadend_gets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
@@ -316,7 +316,7 @@ sub Tvheadend_EPG($){
 
 }
 
-sub Tvheadend_EPGquery($$){
+sub Tvheadend_EPGQuery($$){
 	my ($hash,@args) = @_;
 
 	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef));
@@ -348,7 +348,7 @@ sub Tvheadend_EPGquery($$){
 
 }
 
-sub Tvheadend_DVRcreate($$){
+sub Tvheadend_DVREntryCreate($$){
 	my ($hash,@args) = @_;
 
 	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef));
@@ -414,7 +414,6 @@ sub Tvheadend_HttpGetBlocking($){
 	HttpUtils_BlockingGet(
 		{
 				method     => "GET",
-				header     => "User-Agent: Mozilla/1.22",
 				url        => $hash->{helper}->{http}->{url},
 				timeout    => AttrVal($hash->{NAME},"timeout","20"),
 				user			 => AttrVal($hash->{NAME},"username",undef),
