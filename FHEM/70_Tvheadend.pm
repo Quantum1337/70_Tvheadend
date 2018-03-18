@@ -11,7 +11,6 @@ use JSON;
 my $state = 0;
 
 my %Tvheadend_sets = (
-	"EPG:noArg" => "",
 	"DVREntryCreate" => "",
 );
 
@@ -31,22 +30,46 @@ sub Tvheadend_Initialize($) {
     $hash->{NotifyFn}   = 'Tvheadend_Notify';
 
     $hash->{AttrList} =
-					"primeTime " .
-					"ip " .
-					"port " .
-					"username " .
-					"password " .
 					"timeout " .
-					"epg:yes,no " .
           $readingFnAttributes;
 
 }
 
 sub Tvheadend_Define($$$) {
 	my ($hash, $def) = @_;
+	my @args = split("[ \t][ \t]*", $def);
+
+	return "Usage: define <NAME> $hash->{TYPE} <IP>:[<PORT>] [<USERNAME> <PASSWORD>]" if(int(@args) < 3);
+
+	my @address = split(":",$args[2]);
+
+	if($address[0] =~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/){
+		$hash->{helper}->{http}->{ip} = $address[0];
+	}else{
+		return "The specified ip address is not valid"
+	}
+
+	if(defined $address[1]){
+		if($address[1] =~ /^[0-9]+$/){
+			$hash->{helper}->{http}->{port} = $address[1];
+		}else{
+			return "The specified port is not valid"
+		}
+	}else{
+		$hash->{helper}->{http}->{port} = "9981";
+	}
+
+	if(defined $args[3]){
+		$hash->{helper}->{http}->{username} = $args[3]
+	}
+
+	if(defined $args[4]){
+		$hash->{helper}->{http}->{password} = $args[4]
+	}
+
 	$state = 0;
 
-	if($init_done && AttrVal($hash->{NAME},"epg","no") eq "yes"){
+	if($init_done){
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 	}
 
@@ -102,13 +125,6 @@ sub Tvheadend_Attr(@) {
 
 	if($cmd eq "set") {
 
-      if($attr_name eq "ip") {
-				return "Invalid argument $attr_value to $attr_name. Must be a valid ip adress." if($attr_value !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/)
-			}
-			if($attr_name eq "port") {
-				return "Invalid argument $attr_value to $attr_name. Must be a valid port." if($attr_value !~ /^[0-9]+$/)
-			}
-
 	}elsif($cmd eq "del"){
 
 
@@ -126,7 +142,7 @@ sub Tvheadend_Notify($$){
 
 	my $events = deviceEvents($dev_hash, 1);
 
-	if($dev_hash->{NAME} eq "global" && grep(m/^INITIALIZED|REREADCFG$/, @{$events}) && AttrVal($own_hash->{NAME},"epg","no") eq "yes"){
+	if($dev_hash->{NAME} eq "global" && grep(m/^INITIALIZED|REREADCFG$/, @{$events})){
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$own_hash);
 	}
 
@@ -167,10 +183,9 @@ sub Tvheadend_EPG($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get Channels");
-		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
-		my $ip = AttrVal($hash->{NAME},"ip",undef);
-		my $port = AttrVal($hash->{NAME},"port","9981");
+		my $ip = $hash->{helper}->{http}->{ip};
+		my $port = $hash->{helper}->{http}->{port};
 
 		$hash->{helper}->{http}->{id} = "";
 		$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/channel/list";
@@ -222,11 +237,10 @@ sub Tvheadend_EPG($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Now");
-		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
 		my $channels = $hash->{helper}->{epg}->{channels};
-		my $ip = AttrVal($hash->{NAME},"ip",undef);
-		my $port = AttrVal($hash->{NAME},"port","9981");
+		my $ip = $hash->{helper}->{http}->{ip};
+		my $port = $hash->{helper}->{http}->{port};
 
 		$hash->{helper}->{http}->{busy} = "1";
 		for (my $i=0;$i < int(@$channels);$i+=1){
@@ -271,12 +285,11 @@ sub Tvheadend_EPG($){
 		};
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Next");
-		(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),$state=0,return) if(!AttrVal($hash->{NAME},"ip",undef));
 
 		my $entries = $hash->{helper}->{epg}->{now};
 		my $count = $hash->{helper}->{epg}->{count};
-		my $ip = AttrVal($hash->{NAME},"ip",undef);
-		my $port = AttrVal($hash->{NAME},"port","9981");
+		my $ip = $hash->{helper}->{http}->{ip};
+		my $port = $hash->{helper}->{http}->{port};
 
 		$hash->{helper}->{http}->{busy} = "1";
 		for (my $i=0;$i < int($count);$i+=1){
@@ -322,10 +335,8 @@ sub Tvheadend_EPG($){
 sub Tvheadend_EPGQuery($$){
 	my ($hash,@args) = @_;
 
-	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef));
-
-	my $ip = AttrVal($hash->{NAME},"ip",undef);
-	my $port = AttrVal($hash->{NAME},"port","9981");
+	my $ip = $hash->{helper}->{http}->{ip};
+	my $port = $hash->{helper}->{http}->{port};
 	my $arg = join("%20", @args);
 	my $entries;
 	my $response = "";
@@ -358,10 +369,8 @@ sub Tvheadend_EPGQuery($$){
 sub Tvheadend_DVREntryCreate($$){
 	my ($hash,@args) = @_;
 
-	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - IP is not defined"),return) if(!AttrVal($hash->{NAME},"ip",undef));
-
-	my $ip = AttrVal($hash->{NAME},"ip",undef);
-	my $port = AttrVal($hash->{NAME},"port","9981");
+	my $ip = $hash->{helper}->{http}->{ip};
+	my $port = $hash->{helper}->{http}->{port};
 	my $entries;
 	my $response = "";
 
@@ -393,8 +402,6 @@ sub Tvheadend_DVREntryCreate($$){
 	$jasonData =~ s/\x20/\%20/g;
 	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/dvr/entry/create?conf=".$jasonData;
 	($err, $data) = &Tvheadend_HttpGetBlocking($hash);
-
-	return $data;
 }
 
 sub Tvheadend_StringFormat($$){
@@ -432,8 +439,8 @@ sub Tvheadend_HttpGet($){
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
 				timeout    => AttrVal($hash->{NAME},"timeout","20"),
-				user			 => AttrVal($hash->{NAME},"username",undef),
-				pwd				 => AttrVal($hash->{NAME},"password",undef),
+				user			 => $hash->{helper}->{http}->{username},
+				pwd				 => $hash->{helper}->{http}->{password},
 				noshutdown => "1",
 				hash			 => $hash,
 				id				 => $hash->{helper}->{http}->{id},
@@ -450,8 +457,8 @@ sub Tvheadend_HttpGetBlocking($){
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
 				timeout    => AttrVal($hash->{NAME},"timeout","20"),
-				user			 => AttrVal($hash->{NAME},"username",undef),
-				pwd				 => AttrVal($hash->{NAME},"password",undef),
+				user			 => $hash->{helper}->{http}->{username},
+				pwd				 => $hash->{helper}->{http}->{password},
 				noshutdown => "1",
 		});
 
