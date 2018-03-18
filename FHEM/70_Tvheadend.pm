@@ -196,6 +196,8 @@ sub Tvheadend_EPG($){
 			$entries = decode_json($data)->{entries};
 
 		 	@entriesNow[$param->{id}] = @$entries[0];
+			@entriesNow[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{subtitle});
+			@entriesNow[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{summary});
 			@entriesNow[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{description});
 
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
@@ -253,8 +255,9 @@ sub Tvheadend_EPG($){
 			$entries = decode_json($data)->{entries};
 
 			@entriesNext[$param->{id}] = @$entries[0];
+			@entriesNext[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{subtitle});
+			@entriesNext[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{summary});
 			@entriesNext[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{description});
-
 
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
 			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}->{epg}->{count}){
@@ -337,11 +340,15 @@ sub Tvheadend_EPGQuery($$){
 	$entries = decode_json($data)->{entries};
 	($response = "No Results",return $response) if(!defined @$entries[0]);
 
+	@$entries[0]->{subtitle} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{subtitle});
+	@$entries[0]->{description} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{description});
+	@$entries[0]->{summary} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{summary});
+
 	$response = @$entries[0]->{channelName} ."\n".
 							strftime("%d.%m [%H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
 							strftime("%H:%M:%S]",localtime(encode('UTF-8',@$entries[0]->{stop})))."\n".
-							encode('UTF-8',@$entries[0]->{title})."\n".
-							encode('UTF-8',@$entries[0]->{summary}). "\n".
+							encode('UTF-8',&Tvheadend_StringFormat(@$entries[0]->{title},80))."\n".
+							encode('UTF-8',&Tvheadend_StringFormat(@$entries[0]->{summary},80)). "\n".
 							"ID: " . @$entries[0]->{eventId};
 
 	return $response;
@@ -389,6 +396,33 @@ sub Tvheadend_DVREntryCreate($$){
 
 	return $data;
 }
+
+sub Tvheadend_StringFormat($$){
+
+	my ($string, $maxLength) = @_;
+
+  my @words = split(/ /, $string);
+  my $rowLength = 0;
+  my $result = "";
+  while (int(@words) > 0) {
+  	my $tempString = shift @words;
+    if ($rowLength > 0){
+    	if (($rowLength + length($tempString)) > $maxLength){
+      	$rowLength = 0;
+        $result .= "\n";
+      }
+    }
+    $result .= $tempString;
+    $rowLength += length($tempString);
+    if (int(@words) > 0){
+	    $result .= ' ';
+  	  $rowLength += 1;
+    }
+  }
+
+	return $result;
+}
+
 
 sub Tvheadend_HttpGet($){
 	my ($hash) = @_;
