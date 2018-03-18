@@ -4,9 +4,8 @@ use strict;
 use warnings;
 
 use HttpUtils;
-use HTML::Entities;
 use utf8;
-use JSON;
+eval "use JSON;1" or my $JSON = "JSON";
 
 my $state = 0;
 
@@ -38,6 +37,8 @@ sub Tvheadend_Initialize($) {
 sub Tvheadend_Define($$$) {
 	my ($hash, $def) = @_;
 	my @args = split("[ \t][ \t]*", $def);
+
+	return "Error while loading $JSON. Please install $JSON" if $JSON;
 
 	return "Usage: define <NAME> $hash->{TYPE} <IP>:[<PORT>] [<USERNAME> <PASSWORD>]" if(int(@args) < 3);
 
@@ -326,7 +327,7 @@ sub Tvheadend_EPG($){
 
 		Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Next update: ".  strftime("%H:%M:%S",localtime($update)));
 		RemoveInternalTimer($hash,"Tvheadend_EPG");
-		InternalTimer($update + 10,"Tvheadend_EPG",$hash);
+		InternalTimer($update + 1,"Tvheadend_EPG",$hash);
 		$state = 0;
 	}
 
