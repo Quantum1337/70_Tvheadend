@@ -338,11 +338,14 @@ sub Tvheadend_EPGQuery($$){
 
 	my $ip = $hash->{helper}->{http}->{ip};
 	my $port = $hash->{helper}->{http}->{port};
-	my $arg = join("%20", @args);
 	my $entries;
 	my $response = "";
 
-	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&title=$arg";
+	@args = split(":",join("%20", @args));
+	($args[1] = $args[0], $args[0] = 1)if(!defined $args[1]);
+	($args[0] = 1)if(defined $args[1] && $args[0] !~ /^[0-9]+$/);
+
+	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=$args[0]&title=$args[1]";
 
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	return $err if($err);
@@ -352,16 +355,18 @@ sub Tvheadend_EPGQuery($$){
 	$entries = decode_json($data)->{entries};
 	($response = "No Results",return $response) if(!defined @$entries[0]);
 
-	@$entries[0]->{subtitle} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{subtitle});
-	@$entries[0]->{description} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{description});
-	@$entries[0]->{summary} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{summary});
+	for (my $i=0;$i < int(@$entries);$i+=1){
+		@$entries[$i]->{subtitle} = "Keine Informationen verfügbar" if(!defined @$entries[$i]->{subtitle});
+		@$entries[$i]->{description} = "Keine Informationen verfügbar" if(!defined @$entries[$i]->{description});
+		@$entries[$i]->{summary} = "Keine Informationen verfügbar" if(!defined @$entries[$i]->{summary});
 
-	$response = @$entries[0]->{channelName} ."\n".
-							strftime("%d.%m [%H:%M:%S",localtime(encode('UTF-8',@$entries[0]->{start})))." - ".
-							strftime("%H:%M:%S]",localtime(encode('UTF-8',@$entries[0]->{stop})))."\n".
-							encode('UTF-8',&Tvheadend_StringFormat(@$entries[0]->{title},80))."\n".
-							encode('UTF-8',&Tvheadend_StringFormat(@$entries[0]->{summary},80)). "\n".
-							"ID: " . @$entries[0]->{eventId};
+		$response .= @$entries[$i]->{channelName} ."\n".
+								strftime("%d.%m [%H:%M:%S",localtime(encode('UTF-8',@$entries[$i]->{start})))." - ".
+								strftime("%H:%M:%S]",localtime(encode('UTF-8',@$entries[$i]->{stop})))."\n".
+								encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{title},80))."\n".
+								encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{summary},80)). "\n".
+								"EventId: " . @$entries[$i]->{eventId}."\n";
+	}
 
 	return $response;
 
@@ -439,7 +444,7 @@ sub Tvheadend_HttpGet($){
 		{
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
-				timeout    => AttrVal($hash->{NAME},"timeout","20"),
+				timeout    => AttrVal($hash->{NAME},"timeout","5"),
 				user			 => $hash->{helper}->{http}->{username},
 				pwd				 => $hash->{helper}->{http}->{password},
 				noshutdown => "1",
@@ -457,10 +462,87 @@ sub Tvheadend_HttpGetBlocking($){
 		{
 				method     => "GET",
 				url        => $hash->{helper}->{http}->{url},
-				timeout    => AttrVal($hash->{NAME},"timeout","20"),
+				timeout    => AttrVal($hash->{NAME},"timeout","5"),
 				user			 => $hash->{helper}->{http}->{username},
 				pwd				 => $hash->{helper}->{http}->{password},
 				noshutdown => "1",
 		});
 
 }
+
+1;
+
+=pod
+=begin html
+<a name="Tvheadend"></a>
+<h3>Tvheadend</h3>
+<ul>
+    <i>Tvheadend</i> is a TV streaming server for Linux supporting
+		DVB-S, DVB-S2, DVB-C, DVB-T, ATSC, IPTV,SAT>IP and other formats through
+		the unix pipe as input sources. For further informations, take a look at the
+		<a href="https://github.com/tvheadend/tvheadend">repository</a> on GitHub.
+		This module module makes use of Tvheadends JSON API.
+    <br><br>
+    <a name="Tvheadenddefine"></a>
+    <b>Define</b>
+    <ul>
+        <code>define &lt;name&gt; Tvheadend &lt;IP&gt;:[&lt;PORT&gt;] [&lt;USERNAME&gt; &lt;PASSWORD&gt;]</code>
+        <br><br>
+        Example: <code>define tvheadend Tvheadend 192.168.0.10</code><br>
+        Example: <code>define tvheadend Tvheadend 192.168.0.10 max securephrase</code>
+        <br><br>
+				When &lt;PORT&gt; is not set, the module will use Tvheadends standard port 9981.
+				If the definition is successfull, the module will automatically query the EPG
+				for tv shows playing now and next. The query is based on Channels mapped in Configuration/Channel.
+				The module will automatically query again, when a tv show ends.
+    </ul>
+    <br>
+    <a name="Tvheadendset"></a>
+    <b>Set</b><br>
+    <ul>
+        <code>set &lt;name&gt; &lt;command&gt; &lt;parameter&gt;</code>
+        <br><br>
+				&lt;command&gt; can be one of the following:
+        <br><br>
+        <ul>
+              <li><i>DVREntryCreate</i><br>
+                  Creates a DVR entry, derived from the EventId given with &lt;parameter&gt;.</li>
+        </ul>
+    </ul>
+    <br>
+
+    <a name="Tvheadendget"></a>
+    <b>Get</b><br>
+    <ul>
+        <code>get &lt;name&gt; &lt;command&gt; &lt;parameter&gt;</code>
+        <br><br>
+				&lt;command&gt; can be one of the following:
+				<br><br>
+        <ul>
+              <li><i>EPGQuery</i><br>
+                  Queries the EPG. Returns results, matched with &lt;parameter&gt; and the title of a show.
+									Have not to be an exact match and is not case sensitive. The result includes i.a. the EventId.
+									<br><br>
+									Example: get &lt;name&gt; EPGQuery 3:tagesch<br>
+									This command will query the first three results in upcoming order, including
+									"tagessch" in the title of a tv show.
+									</li>
+        </ul>
+    </ul>
+    <br>
+
+    <a name="TVheadendattr"></a>
+    <b>Attributes</b>
+    <ul>
+        <code>attr &lt;name&gt; &lt;attribute&gt; &lt;value&gt;</code>
+        <br><br>
+        Attributes:
+        <ul>
+            <li><i>timeout</i><br>
+                HTTP timeout in seconds. When not set, 5 seconds are used.
+            </li>
+        </ul>
+    </ul>
+</ul>
+=end html
+=cut
