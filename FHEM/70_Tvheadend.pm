@@ -17,6 +17,16 @@ my %Tvheadend_gets = (
 	"EPGQuery" => "",
 );
 
+my %NoEPGEntry = (
+	"start"  => 0,
+	"stop" => 0,
+	"title"  => "Keine Informationen verfügbar",
+	"subtitle"  => "Keine Informationen verfügbar",
+	"description"  => "Keine Informationen verfügbar",
+	"EventId" => 0,
+	"nextEventId" => 0,
+);
+
 sub Tvheadend_Initialize($) {
     my ($hash) = @_;
 
@@ -152,23 +162,19 @@ sub Tvheadend_EPG($){
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
-			my $entries;
-			my @channels = ();
+			my $response;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
+			$response = decode_json($data);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Channels available"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($response->{total} == 0);
+			my $test = $response->{entries};
+			@$test = sort {$a->{number} <=> $b->{number}} @$test;
 
-			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Keine Kanäle verfügbar"),$state=0,$hash->{helper}{http}{busy} = "0",return) if(int(@$entries) == 0);
-
-			for (my $i=0;$i < int(@$entries);$i+=1){
-				@channels[$i] = @$entries[$i]->{val};
-			}
-
-			$hash->{helper}{epg}{count} = @$entries;
-			$hash->{helper}{epg}{channels} = \@channels;
+			$hash->{helper}{epg}{count} = $response->{total};
+			$hash->{helper}{epg}{channels} = $test;
 			$hash->{helper}{http}{busy} = "0";
 
 			InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
@@ -182,7 +188,7 @@ sub Tvheadend_EPG($){
 		my $port = $hash->{helper}{http}{port};
 
 		$hash->{helper}{http}{id} = "";
-		$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/channel/list";
+		$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/channel/grid";
 		$hash->{helper}{http}{busy} = "1";
 		&Tvheadend_HttpGet($hash);
 
@@ -197,6 +203,7 @@ sub Tvheadend_EPG($){
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
+			my $channels = $hash->{helper}{epg}{channels};
 			my $entries;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
@@ -204,24 +211,25 @@ sub Tvheadend_EPG($){
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about current tv shows available"),$state=0,$hash->{helper}{http}{busy} = "0",return) if(!defined @$entries[0]);
-
-		 	@entriesNow[$param->{id}] = @$entries[0];
-			@entriesNow[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{subtitle});
-			@entriesNow[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{summary});
-			@entriesNow[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{description});
-
+			if(!defined @$entries[0]){
+			  Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - No current EPG information for Channel @$channels[$param->{id}]->{number}:@$channels[$param->{id}]->{name}");
+				@entriesNow[$param->{id}] = \%NoEPGEntry;
+			}else{
+		 		@entriesNow[$param->{id}] = @$entries[0];
+				@entriesNow[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{subtitle});
+				@entriesNow[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{summary});
+				@entriesNow[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{description});
+			}
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}{epg}{count}");
 			if(scalar(grep {defined $_} @entriesNow) == $hash->{helper}{epg}{count}){
 
-				@entriesNow = sort {$a->{channelNumber} <=> $b->{channelNumber} ||
-														 $a->{start} <=> $b->{start}
-														}@entriesNow;
 				$hash->{helper}{epg}{now} = \@entriesNow;
 
-				$hash->{helper}{epg}{update} = $entriesNow[0]->{stop};
 				for (my $i=0;$i < int(@entriesNow);$i+=1){
-						$hash->{helper}{epg}{update} = $entriesNow[$i]->{stop} if($entriesNow[$i]->{stop} < $hash->{helper}{epg}{update});
+						($hash->{helper}{epg}{update} = $entriesNow[$i]->{stop},last) if($entriesNow[$i]->{stop} != 0);
+				}
+				for (my $i=0;$i < int(@entriesNow);$i+=1){
+						$hash->{helper}{epg}{update} = $entriesNow[$i]->{stop} if(($entriesNow[$i]->{stop} < $hash->{helper}{epg}{update}) && $entriesNow[$i]->{start} != 0);
 				}
 
 				$hash->{helper}{http}{busy} = "0";
@@ -235,14 +243,17 @@ sub Tvheadend_EPG($){
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Now");
 
 		my $channels = $hash->{helper}{epg}{channels};
+		my $count = $hash->{helper}{epg}{count};
+		my $channelName = "";
 		my $ip = $hash->{helper}{http}{ip};
 		my $port = $hash->{helper}{http}{port};
 
 		$hash->{helper}{http}{busy} = "1";
-		for (my $i=0;$i < int(@$channels);$i+=1){
+		for (my $i=0;$i < $count;$i+=1){
 			$hash->{helper}{http}{id} = $i;
-			@$channels[$i] =~ s/\x20/\%20/g;
-			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".encode('UTF-8',@$channels[$i]);
+			$channelName = @$channels[$i]->{name};
+			$channelName =~ s/\x20/\%20/g;
+			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".encode('UTF-8',$channelName);
 			&Tvheadend_HttpGet($hash);
 		}
 
@@ -257,6 +268,7 @@ sub Tvheadend_EPG($){
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
+			my $channels = $hash->{helper}{epg}{channels};
 			my $entries;
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
@@ -264,13 +276,15 @@ sub Tvheadend_EPG($){
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about upcoming tv shows available"),$state=0,$hash->{helper}{http}{busy} = "0",return) if(!defined @$entries[0]);
-
-			@entriesNext[$param->{id}] = @$entries[0];
-			@entriesNext[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{subtitle});
-			@entriesNext[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{summary});
-			@entriesNext[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{description});
-
+			if(!defined @$entries[0]){
+				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - No upcoming EPG information for Channel @$channels[$param->{id}]->{number}:@$channels[$param->{id}]->{name}");
+				@entriesNext[$param->{id}] = \%NoEPGEntry;
+			}else{
+				@entriesNext[$param->{id}] = @$entries[0];
+				@entriesNext[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{subtitle});
+				@entriesNext[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{summary});
+				@entriesNext[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{description});
+			}
 			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}{epg}{count}");
 			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}{epg}{count}){
 				$hash->{helper}{epg}{next} = \@entriesNext;
@@ -306,19 +320,23 @@ sub Tvheadend_EPG($){
 
 		readingsBeginUpdate($hash);
 		for (my $i=0;$i < int(@$entriesNow);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."Name", encode('UTF-8',@$entriesNow[$i]->{channelName}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."Number", encode('UTF-8',@$entriesNow[$i]->{channelNumber}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."TitleNow", encode('UTF-8',@$entriesNow[$i]->{title}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."StartNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{start}))));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."EndNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{stop}))));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."DescriptionNow", encode('UTF-8',@$entriesNow[$i]->{description}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."Name", encode('UTF-8',@$channels[$i]->{name}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."Number", encode('UTF-8',@$channels[$i]->{number}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."TitleNow", encode('UTF-8',@$entriesNow[$i]->{title}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."StartNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{start}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."EndNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{stop}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."DescriptionNow", encode('UTF-8',@$entriesNow[$i]->{description}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."SummaryNow", encode('UTF-8',@$entriesNow[$i]->{summary}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."SubtitleNow", encode('UTF-8',@$entriesNow[$i]->{subtitle}));
 		}
 
 		for (my $i=0;$i < int(@$entriesNext);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."DescriptionNext", encode('UTF-8',@$entriesNext[$i]->{description}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."TitleNext", encode('UTF-8',@$entriesNext[$i]->{title}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."StartNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{start}))));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%02d", $i)."EndNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{stop}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."DescriptionNext", encode('UTF-8',@$entriesNext[$i]->{description}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."SummaryNext", encode('UTF-8',@$entriesNext[$i]->{summary}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."SubtitleNext", encode('UTF-8',@$entriesNext[$i]->{subtitle}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."TitleNext", encode('UTF-8',@$entriesNext[$i]->{title}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."StartNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{start}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", $i)."EndNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{stop}))));
 		}
 		readingsEndUpdate($hash, 1);
 
@@ -358,11 +376,13 @@ sub Tvheadend_EPGQuery($$){
 		@$entries[$i]->{description} = "Keine Informationen verfügbar" if(!defined @$entries[$i]->{description});
 		@$entries[$i]->{summary} = "Keine Informationen verfügbar" if(!defined @$entries[$i]->{summary});
 
-		$response .= @$entries[$i]->{channelName} ."\n".
-								strftime("%d.%m [%H:%M:%S",localtime(encode('UTF-8',@$entries[$i]->{start})))." - ".
+		$response .= "Sender: ".@$entries[$i]->{channelName} ."\n".
+								"Zeit: ".strftime("%d.%m [%H:%M:%S",localtime(encode('UTF-8',@$entries[$i]->{start})))." - ".
 								strftime("%H:%M:%S]",localtime(encode('UTF-8',@$entries[$i]->{stop})))."\n".
-								encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{title},80))."\n".
-								encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{summary},80)). "\n".
+								"Titel: ".encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{title},80))."\n".
+								"Subtitel: ".encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{subtitle},80))."\n".
+								"Zusammenfassung: ".encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{summary},80)). "\n".
+								"Beschreibung: ".encode('UTF-8',&Tvheadend_StringFormat(@$entries[$i]->{description},80)). "\n".
 								"EventId: " . @$entries[$i]->{eventId}."\n";
 	}
 
