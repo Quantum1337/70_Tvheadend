@@ -3,7 +3,7 @@ Ein FHEM-Modul für die Tvheadend JSON-API
 
 ## define
 
-`define <name> Tvheadend \<IP\>:[\<PORT\>] [\<USERNAME\> \<PASSWORD\>]`
+`define <name> Tvheadend <IP>:[<PORT>] [<USERNAME> <PASSWORD>]`
 
 Example: `define tvheadend Tvheadend 192.168.0.10`\
 Example: `define tvheadend Tvheadend 192.168.0.10 max securephrase`
