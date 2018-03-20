@@ -167,8 +167,11 @@ sub Tvheadend_EPG($){
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Schnittstelle nicht gefunden"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+
 
 			$entries = decode_json($data)->{entries};
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Keine Kanäle verfügbar"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(int(@$entries) == 0);
 
 			for (my $i=0;$i < int(@$entries);$i+=1){
 				@channels[$i] = @$entries[$i]->{val};
@@ -208,8 +211,10 @@ sub Tvheadend_EPG($){
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Schnittstelle nicht gefunden"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Keine Informationen über laufende Sendungen verfügbar"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
 
 		 	@entriesNow[$param->{id}] = @$entries[0];
 			@entriesNow[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{subtitle});
@@ -224,9 +229,9 @@ sub Tvheadend_EPG($){
 														}@entriesNow;
 				$hash->{helper}->{epg}->{now} = \@entriesNow;
 
-				$hash->{helper}->{epg}->{update} = @entriesNow[0]->{stop};
+				$hash->{helper}->{epg}->{update} = $entriesNow[0]->{stop};
 				for (my $i=0;$i < int(@entriesNow);$i+=1){
-						$hash->{helper}->{epg}->{update} = @entriesNow[$i]->{stop} if(@entriesNow[$i]->{stop} < $hash->{helper}->{epg}->{update});
+						$hash->{helper}->{epg}->{update} = $entriesNow[$i]->{stop} if($entriesNow[$i]->{stop} < $hash->{helper}->{epg}->{update});
 				}
 
 				$hash->{helper}->{http}->{busy} = "0";
@@ -266,8 +271,10 @@ sub Tvheadend_EPG($){
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Schnittstelle nicht gefunden"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Kann Informationen über nachfolgende Sendungen verfügbar"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
 
 			@entriesNext[$param->{id}] = @$entries[0];
 			@entriesNext[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{subtitle});
@@ -350,6 +357,7 @@ sub Tvheadend_EPGQuery($$){
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	return $err if($err);
 	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
+	($response = "Schnittstelle nicht gefunden",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
 
 
 	$entries = decode_json($data)->{entries};
@@ -380,10 +388,11 @@ sub Tvheadend_DVREntryCreate($$){
 	my $entries;
 	my $response = "";
 
-	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".@args[0];
+	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".$args[0];
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	return $err if($err);
 	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
+	($response = "Schnittstelle nicht gefunden",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
 
 	$entries = decode_json($data)->{entries};
 	($response = "EventId is not valid",return $response) if(!defined @$entries[0]);
@@ -523,7 +532,7 @@ sub Tvheadend_HttpGetBlocking($){
                   Queries the EPG. Returns results, matched with &lt;parameter&gt; and the title of a show.
 									Have not to be an exact match and is not case sensitive. The result includes i.a. the EventId.
 									<br><br>
-									Example: get &lt;name&gt; EPGQuery 3:tagesch<br>
+									Example: get &lt;name&gt; EPGQuery 3:tagessch<br>
 									This command will query the first three results in upcoming order, including
 									"tagessch" in the title of a tv show.
 									</li>
