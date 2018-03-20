@@ -167,7 +167,7 @@ sub Tvheadend_EPG($){
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Schnittstelle nicht gefunden"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 
 			$entries = decode_json($data)->{entries};
@@ -211,10 +211,10 @@ sub Tvheadend_EPG($){
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Schnittstelle nicht gefunden"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Keine Informationen über laufende Sendungen verfügbar"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about current tv shows available"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
 
 		 	@entriesNow[$param->{id}] = @$entries[0];
 			@entriesNow[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{subtitle});
@@ -271,10 +271,10 @@ sub Tvheadend_EPG($){
 
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
 			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Schnittstelle nicht gefunden"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Kann Informationen über nachfolgende Sendungen verfügbar"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about upcoming tv shows available"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
 
 			@entriesNext[$param->{id}] = @$entries[0];
 			@entriesNext[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{subtitle});
@@ -357,7 +357,7 @@ sub Tvheadend_EPGQuery($$){
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	return $err if($err);
 	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
-	($response = "Schnittstelle nicht gefunden",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
+	($response = "Requested interface not found",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
 
 
 	$entries = decode_json($data)->{entries};
@@ -392,7 +392,7 @@ sub Tvheadend_DVREntryCreate($$){
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	return $err if($err);
 	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
-	($response = "Schnittstelle nicht gefunden",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
+	($response = "Requested interface not found",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
 
 	$entries = decode_json($data)->{entries};
 	($response = "EventId is not valid",return $response) if(!defined @$entries[0]);
