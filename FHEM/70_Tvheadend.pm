@@ -252,7 +252,7 @@ sub Tvheadend_EPG($){
 		for (my $i=0;$i < int(@$channels);$i+=1){
 			$hash->{helper}->{http}->{id} = $i;
 			@$channels[$i] =~ s/\x20/\%20/g;
-			$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".@$channels[$i];
+			$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".encode('UTF-8',@$channels[$i]);
 			&Tvheadend_HttpGet($hash);
 		}
 
