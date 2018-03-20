@@ -24,7 +24,6 @@ sub Tvheadend_Initialize($) {
     $hash->{UndefFn}    = 'Tvheadend_Undef';
     $hash->{SetFn}      = 'Tvheadend_Set';
     $hash->{GetFn}      = 'Tvheadend_Get';
-    $hash->{ShutdownFn} = 'Tvheadend_Shutdown';
     $hash->{AttrFn}     = 'Tvheadend_Attr';
     $hash->{NotifyFn}   = 'Tvheadend_Notify';
 
@@ -45,27 +44,27 @@ sub Tvheadend_Define($$$) {
 	my @address = split(":",$args[2]);
 
 	if($address[0] =~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/){
-		$hash->{helper}->{http}->{ip} = $address[0];
+		$hash->{helper}{http}{ip} = $address[0];
 	}else{
 		return "The specified ip address is not valid"
 	}
 
 	if(defined $address[1]){
 		if($address[1] =~ /^[0-9]+$/){
-			$hash->{helper}->{http}->{port} = $address[1];
+			$hash->{helper}{http}{port} = $address[1];
 		}else{
 			return "The specified port is not valid"
 		}
 	}else{
-		$hash->{helper}->{http}->{port} = "9981";
+		$hash->{helper}{http}{port} = "9981";
 	}
 
 	if(defined $args[3]){
-		$hash->{helper}->{http}->{username} = $args[3]
+		$hash->{helper}{http}{username} = $args[3]
 	}
 
 	if(defined $args[4]){
-		$hash->{helper}->{http}->{password} = $args[4]
+		$hash->{helper}{http}{password} = $args[4]
 	}
 
 	$state = 0;
@@ -84,15 +83,6 @@ sub Tvheadend_Undef($$) {
 	RemoveInternalTimer($hash,"Tvheadend_EPG");
 
 	return undef;
-}
-
-sub Tvheadend_Shutdown($){
-	my($hash) = @_;
-
-	RemoveInternalTimer($hash,"Tvheadend_EPG");
-
-	return;
-
 }
 
 sub Tvheadend_Set($$$) {
@@ -153,33 +143,33 @@ sub Tvheadend_Notify($$){
 sub Tvheadend_EPG($){
 	my ($hash) = @_;
 
-	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Busy, leaving..."),return) if($hash->{helper}->{http}->{busy} eq "1");
+	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Busy, leaving..."),return) if($hash->{helper}{http}{busy} eq "1");
 
 	## GET CHANNELS
 	if($state == 0){
 
-		$hash->{helper}->{http}->{callback} = sub{
+		$hash->{helper}{http}{callback} = sub{
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
 			my $entries;
 			my @channels = ();
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 
 			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Keine Kanäle verfügbar"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(int(@$entries) == 0);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Keine Kanäle verfügbar"),$state=0,$hash->{helper}{http}{busy} = "0",return) if(int(@$entries) == 0);
 
 			for (my $i=0;$i < int(@$entries);$i+=1){
 				@channels[$i] = @$entries[$i]->{val};
 			}
 
-			$hash->{helper}->{epg}->{count} = @$entries;
-			$hash->{helper}->{epg}->{channels} = \@channels;
-			$hash->{helper}->{http}->{busy} = "0";
+			$hash->{helper}{epg}{count} = @$entries;
+			$hash->{helper}{epg}{channels} = \@channels;
+			$hash->{helper}{http}{busy} = "0";
 
 			InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
@@ -188,12 +178,12 @@ sub Tvheadend_EPG($){
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get Channels");
 
-		my $ip = $hash->{helper}->{http}->{ip};
-		my $port = $hash->{helper}->{http}->{port};
+		my $ip = $hash->{helper}{http}{ip};
+		my $port = $hash->{helper}{http}{port};
 
-		$hash->{helper}->{http}->{id} = "";
-		$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/channel/list";
-		$hash->{helper}->{http}->{busy} = "1";
+		$hash->{helper}{http}{id} = "";
+		$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/channel/list";
+		$hash->{helper}{http}{busy} = "1";
 		&Tvheadend_HttpGet($hash);
 
 		return;
@@ -203,38 +193,38 @@ sub Tvheadend_EPG($){
 
 		my @entriesNow = ();
 
-		$hash->{helper}->{http}->{callback} = sub{
+		$hash->{helper}{http}{callback} = sub{
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about current tv shows available"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about current tv shows available"),$state=0,$hash->{helper}{http}{busy} = "0",return) if(!defined @$entries[0]);
 
 		 	@entriesNow[$param->{id}] = @$entries[0];
 			@entriesNow[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{subtitle});
 			@entriesNow[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{summary});
 			@entriesNow[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNow[$param->{id}]->{description});
 
-			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
-			if(scalar(grep {defined $_} @entriesNow) == $hash->{helper}->{epg}->{count}){
+			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}{epg}{count}");
+			if(scalar(grep {defined $_} @entriesNow) == $hash->{helper}{epg}{count}){
 
 				@entriesNow = sort {$a->{channelNumber} <=> $b->{channelNumber} ||
 														 $a->{start} <=> $b->{start}
 														}@entriesNow;
-				$hash->{helper}->{epg}->{now} = \@entriesNow;
+				$hash->{helper}{epg}{now} = \@entriesNow;
 
-				$hash->{helper}->{epg}->{update} = $entriesNow[0]->{stop};
+				$hash->{helper}{epg}{update} = $entriesNow[0]->{stop};
 				for (my $i=0;$i < int(@entriesNow);$i+=1){
-						$hash->{helper}->{epg}->{update} = $entriesNow[$i]->{stop} if($entriesNow[$i]->{stop} < $hash->{helper}->{epg}->{update});
+						$hash->{helper}{epg}{update} = $entriesNow[$i]->{stop} if($entriesNow[$i]->{stop} < $hash->{helper}{epg}{update});
 				}
 
-				$hash->{helper}->{http}->{busy} = "0";
+				$hash->{helper}{http}{busy} = "0";
 				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash) if ($state == 1);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
 				$state = 2;
@@ -244,15 +234,15 @@ sub Tvheadend_EPG($){
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Now");
 
-		my $channels = $hash->{helper}->{epg}->{channels};
-		my $ip = $hash->{helper}->{http}->{ip};
-		my $port = $hash->{helper}->{http}->{port};
+		my $channels = $hash->{helper}{epg}{channels};
+		my $ip = $hash->{helper}{http}{ip};
+		my $port = $hash->{helper}{http}{port};
 
-		$hash->{helper}->{http}->{busy} = "1";
+		$hash->{helper}{http}{busy} = "1";
 		for (my $i=0;$i < int(@$channels);$i+=1){
-			$hash->{helper}->{http}->{id} = $i;
+			$hash->{helper}{http}{id} = $i;
 			@$channels[$i] =~ s/\x20/\%20/g;
-			$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".encode('UTF-8',@$channels[$i]);
+			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".encode('UTF-8',@$channels[$i]);
 			&Tvheadend_HttpGet($hash);
 		}
 
@@ -263,29 +253,29 @@ sub Tvheadend_EPG($){
 
 		my @entriesNext = ();
 
-		$hash->{helper}->{http}->{callback} = sub{
+		$hash->{helper}{http}{callback} = sub{
 			my ($param, $err, $data) = @_;
 
 			my $hash = $param->{hash};
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($err);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about upcoming tv shows available"),$state=0,$hash->{helper}->{http}->{busy} = "0",return) if(!defined @$entries[0]);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Informations about upcoming tv shows available"),$state=0,$hash->{helper}{http}{busy} = "0",return) if(!defined @$entries[0]);
 
 			@entriesNext[$param->{id}] = @$entries[0];
 			@entriesNext[$param->{id}]->{subtitle} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{subtitle});
 			@entriesNext[$param->{id}]->{summary} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{summary});
 			@entriesNext[$param->{id}]->{description} = "Keine Informationen verfügbar" if(!defined @entriesNext[$param->{id}]->{description});
 
-			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}->{epg}->{count}");
-			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}->{epg}->{count}){
-				$hash->{helper}->{epg}->{next} = \@entriesNext;
+			#Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - ".scalar(grep {defined $_} @$entriesNext)." / $hash->{helper}{epg}{count}");
+			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}{epg}{count}){
+				$hash->{helper}{epg}{next} = \@entriesNext;
 
-				$hash->{helper}->{http}->{busy} = "0";
+				$hash->{helper}{http}{busy} = "0";
 				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 3");
 				$state = 3;
@@ -294,25 +284,25 @@ sub Tvheadend_EPG($){
 
 		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get EPG Next");
 
-		my $entries = $hash->{helper}->{epg}->{now};
-		my $count = $hash->{helper}->{epg}->{count};
-		my $ip = $hash->{helper}->{http}->{ip};
-		my $port = $hash->{helper}->{http}->{port};
+		my $entries = $hash->{helper}{epg}{now};
+		my $count = $hash->{helper}{epg}{count};
+		my $ip = $hash->{helper}{http}{ip};
+		my $port = $hash->{helper}{http}{port};
 
-		$hash->{helper}->{http}->{busy} = "1";
+		$hash->{helper}{http}{busy} = "1";
 		for (my $i=0;$i < int($count);$i+=1){
-			$hash->{helper}->{http}->{id} = $i;
-			$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".@$entries[$i]->{nextEventId};
+			$hash->{helper}{http}{id} = $i;
+			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".@$entries[$i]->{nextEventId};
 			&Tvheadend_HttpGet($hash);
 		}
 		return;
 
 	## SET READINGS
 	}elsif($state == 3){
-		my $update = $hash->{helper}->{epg}->{update};
-		my $entriesNow = $hash->{helper}->{epg}->{now};
-		my $entriesNext = $hash->{helper}->{epg}->{next};
-		my $channels = $hash->{helper}->{epg}->{channels};
+		my $update = $hash->{helper}{epg}{update};
+		my $entriesNow = $hash->{helper}{epg}{now};
+		my $entriesNext = $hash->{helper}{epg}{next};
+		my $channels = $hash->{helper}{epg}{channels};
 
 		readingsBeginUpdate($hash);
 		for (my $i=0;$i < int(@$entriesNow);$i+=1){
@@ -343,8 +333,8 @@ sub Tvheadend_EPG($){
 sub Tvheadend_EPGQuery($$){
 	my ($hash,@args) = @_;
 
-	my $ip = $hash->{helper}->{http}->{ip};
-	my $port = $hash->{helper}->{http}->{port};
+	my $ip = $hash->{helper}{http}{ip};
+	my $port = $hash->{helper}{http}{port};
 	my $entries;
 	my $response = "";
 
@@ -352,7 +342,7 @@ sub Tvheadend_EPGQuery($$){
 	($args[1] = $args[0], $args[0] = 1)if(!defined $args[1]);
 	($args[0] = 1)if(defined $args[1] && $args[0] !~ /^[0-9]+$/);
 
-	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=$args[0]&title=$args[1]";
+	$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=$args[0]&title=$args[1]";
 
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	return $err if($err);
@@ -383,12 +373,12 @@ sub Tvheadend_EPGQuery($$){
 sub Tvheadend_DVREntryCreate($$){
 	my ($hash,@args) = @_;
 
-	my $ip = $hash->{helper}->{http}->{ip};
-	my $port = $hash->{helper}->{http}->{port};
+	my $ip = $hash->{helper}{http}{ip};
+	my $port = $hash->{helper}{http}{port};
 	my $entries;
 	my $response = "";
 
-	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".$args[0];
+	$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".$args[0];
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	return $err if($err);
 	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
@@ -415,7 +405,7 @@ sub Tvheadend_DVREntryCreate($$){
 	my $jasonData = encode_json(\%record);
 
 	$jasonData =~ s/\x20/\%20/g;
-	$hash->{helper}->{http}->{url} = "http://".$ip.":".$port."/api/dvr/entry/create?conf=".$jasonData;
+	$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/dvr/entry/create?conf=".$jasonData;
 	($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 }
 
@@ -452,14 +442,14 @@ sub Tvheadend_HttpGet($){
 	HttpUtils_NonblockingGet(
 		{
 				method     => "GET",
-				url        => $hash->{helper}->{http}->{url},
+				url        => $hash->{helper}{http}{url},
 				timeout    => AttrVal($hash->{NAME},"timeout","5"),
-				user			 => $hash->{helper}->{http}->{username},
-				pwd				 => $hash->{helper}->{http}->{password},
+				user			 => $hash->{helper}{http}{username},
+				pwd				 => $hash->{helper}{http}{password},
 				noshutdown => "1",
 				hash			 => $hash,
-				id				 => $hash->{helper}->{http}->{id},
-				callback   => $hash->{helper}->{http}->{callback}
+				id				 => $hash->{helper}{http}{id},
+				callback   => $hash->{helper}{http}{callback}
 		});
 
 }
@@ -470,10 +460,10 @@ sub Tvheadend_HttpGetBlocking($){
 	HttpUtils_BlockingGet(
 		{
 				method     => "GET",
-				url        => $hash->{helper}->{http}->{url},
+				url        => $hash->{helper}{http}{url},
 				timeout    => AttrVal($hash->{NAME},"timeout","5"),
-				user			 => $hash->{helper}->{http}->{username},
-				pwd				 => $hash->{helper}->{http}->{password},
+				user			 => $hash->{helper}{http}{username},
+				pwd				 => $hash->{helper}{http}{password},
 				noshutdown => "1",
 		});
 
