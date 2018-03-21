@@ -30,6 +30,7 @@ sub Tvheadend_Initialize($) {
 
     $hash->{AttrList} =
 					"timeout " .
+					"EPGVisibleItems:multiple-strict,Title,Subtitle,Summary,Description,ChannelName,ChannelNumber,StartTime,StopTime " .
 					"EPGChannelList:multiple-strict,all " .
           $readingFnAttributes;
 
@@ -270,27 +271,28 @@ sub Tvheadend_EPG($){
 		my $entriesNow = $hash->{helper}{epg}{now};
 		my $entriesNext = $hash->{helper}{epg}{next};
 		my $channels = $hash->{helper}{epg}{channels};
+		my $items = AttrVal($hash->{NAME},"EPGVisibleItems","");
 
 		readingsBeginUpdate($hash);
 		for (my $i=0;$i < int(@$channels);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Name", encode('UTF-8',@$channels[$i]->{name}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Number", encode('UTF-8',@$channels[$i]->{number}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Name", encode('UTF-8',@$channels[$i]->{name})) if($items =~ /^.*ChannelName.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Number", encode('UTF-8',@$channels[$i]->{number})) if($items =~ /^.*ChannelNumber.*$/);
 		}
 		for (my $i=0;$i < int(@$entriesNow);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."TitleNow", encode('UTF-8',@$entriesNow[$i]->{title}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."StartNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{start}))));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."EndNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{stop}))));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."DescriptionNow", encode('UTF-8',@$entriesNow[$i]->{description}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SummaryNow", encode('UTF-8',@$entriesNow[$i]->{summary}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SubtitleNow", encode('UTF-8',@$entriesNow[$i]->{subtitle}));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."TitleNow", encode('UTF-8',@$entriesNow[$i]->{title})) if($items =~ /^.*Title.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."StartTimeNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{start})))) if($items =~ /^.*StartTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."StopTimeNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{stop})))) if($items =~ /^.*StopTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."DescriptionNow", encode('UTF-8',@$entriesNow[$i]->{description})) if($items =~ /^.*Description.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SummaryNow", encode('UTF-8',@$entriesNow[$i]->{summary})) if($items =~ /^.*Summary.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SubtitleNow", encode('UTF-8',@$entriesNow[$i]->{subtitle})) if($items =~ /^.*Subtitel.*$/);
 		}
 		for (my $i=0;$i < int(@$entriesNext);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."DescriptionNext", encode('UTF-8',@$entriesNext[$i]->{description}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SummaryNext", encode('UTF-8',@$entriesNext[$i]->{summary}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SubtitleNext", encode('UTF-8',@$entriesNext[$i]->{subtitle}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."TitleNext", encode('UTF-8',@$entriesNext[$i]->{title}));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."StartNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{start}))));
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."EndNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{stop}))));
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."DescriptionNext", encode('UTF-8',@$entriesNext[$i]->{description})) if($items =~ /^.*Description.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SummaryNext", encode('UTF-8',@$entriesNext[$i]->{summary})) if($items =~ /^.*Summary.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SubtitleNext", encode('UTF-8',@$entriesNext[$i]->{subtitle})) if($items =~ /^.*Subtitel.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."TitleNext", encode('UTF-8',@$entriesNext[$i]->{title})) if($items =~ /^.*Title.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."StartTimeNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{start})))) if($items =~ /^.*StartTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."StopTimeNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{stop})))) if($items =~ /^.*StopTime.*$/);
 		}
 		readingsEndUpdate($hash, 1);
 
@@ -553,10 +555,14 @@ sub Tvheadend_HttpGetBlocking($){
     <ul>
         <code>attr &lt;name&gt; &lt;attribute&gt; &lt;value&gt;</code>
         <br><br>
-        Attributes:
+        &lt;attribute&gt; can be one of the following: 
         <ul>
             <li><i>timeout</i><br>
                 HTTP timeout in seconds. When not set, 5 seconds are used.
+            </li>
+						<li><i>EPGVisibleItems</i><br>
+                Selectable list of epg items. Items selected will generate
+								readings. The readings will be updated, when a new EPG entry is available.
             </li>
         </ul>
     </ul>
