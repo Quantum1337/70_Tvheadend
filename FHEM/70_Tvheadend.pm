@@ -82,6 +82,7 @@ sub Tvheadend_Define($$$) {
 	$state = 0;
 
 	if($init_done){
+		Tvheadend_ChannelQuery($hash);
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 	}
 
@@ -148,6 +149,7 @@ sub Tvheadend_Notify($$){
 	my $events = deviceEvents($dev_hash, 1);
 
 	if($dev_hash->{NAME} eq "global" && grep(m/^INITIALIZED|REREADCFG$/, @{$events})){
+		Tvheadend_ChannelQuery($own_hash);
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$own_hash);
 	}
 
@@ -157,49 +159,10 @@ sub Tvheadend_Notify($$){
 sub Tvheadend_EPG($){
 	my ($hash) = @_;
 
-	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Busy, leaving..."),return) if($hash->{helper}{http}{busy} eq "1");
-
-	## GET CHANNELS
-	if($state == 0){
-
-		$hash->{helper}{http}{callback} = sub{
-			my ($param, $err, $data) = @_;
-
-			my $hash = $param->{hash};
-			my $response;
-
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
-
-			$response = decode_json($data);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - No Channels available"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($response->{total} == 0);
-			my $test = $response->{entries};
-			@$test = sort {$a->{number} <=> $b->{number}} @$test;
-
-			$hash->{helper}{epg}{count} = $response->{total};
-			$hash->{helper}{epg}{channels} = $test;
-			$hash->{helper}{http}{busy} = "0";
-
-			InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
-			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
-			$state = 1;
-		};
-
-		Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get Channels");
-
-		my $ip = $hash->{helper}{http}{ip};
-		my $port = $hash->{helper}{http}{port};
-
-		$hash->{helper}{http}{id} = "";
-		$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/channel/grid";
-		$hash->{helper}{http}{busy} = "1";
-		&Tvheadend_HttpGet($hash);
-
-		return;
+	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Can't get EPG data, because no channels defined"),return) if($hash->{helper}{epg}{count} == 0);
 
 	#GET NOW
-	}elsif($state == 1){
+	if($state == 0){
 
 		my @entriesNow = ();
 
@@ -210,9 +173,9 @@ sub Tvheadend_EPG($){
 			my $channels = $hash->{helper}{epg}{channels};
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
 			if(!defined @$entries[0]){
@@ -236,10 +199,9 @@ sub Tvheadend_EPG($){
 						$hash->{helper}{epg}{update} = $entriesNow[$i]->{stop} if(($entriesNow[$i]->{stop} < $hash->{helper}{epg}{update}) && $entriesNow[$i]->{start} != 0);
 				}
 
-				$hash->{helper}{http}{busy} = "0";
-				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash) if ($state == 1);
-				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
-				$state = 2;
+				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
+				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
+				$state = 1;
 			}
 
 		};
@@ -252,7 +214,6 @@ sub Tvheadend_EPG($){
 		my $ip = $hash->{helper}{http}{ip};
 		my $port = $hash->{helper}{http}{port};
 
-		$hash->{helper}{http}{busy} = "1";
 		for (my $i=0;$i < $count;$i+=1){
 			$hash->{helper}{http}{id} = $i;
 			$channelName = @$channels[$i]->{name};
@@ -264,7 +225,7 @@ sub Tvheadend_EPG($){
 		return;
 
 	## GET NEXT
-	}elsif($state == 2){
+	}elsif($state == 1){
 
 		my @entriesNext = ();
 
@@ -275,9 +236,9 @@ sub Tvheadend_EPG($){
 			my $channels = $hash->{helper}{epg}{channels};
 			my $entries;
 
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($err);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*401 Unauthorized.*/s);
-			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,$hash->{helper}{http}{busy} = "0",return) if($data =~ /^.*404 Not Found.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),$state=0,return) if($err);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Server needs authentication"),$state=0,return) if($data =~ /^.*401 Unauthorized.*/s);
+			(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Requested interface not found"),$state=0,return) if($data =~ /^.*404 Not Found.*/s);
 
 			$entries = decode_json($data)->{entries};
 			if(!defined @$entries[0]){
@@ -293,10 +254,9 @@ sub Tvheadend_EPG($){
 			if(scalar(grep {defined $_} @entriesNext) == $hash->{helper}{epg}{count}){
 				$hash->{helper}{epg}{next} = \@entriesNext;
 
-				$hash->{helper}{http}{busy} = "0";
 				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
-				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 3");
-				$state = 3;
+				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
+				$state = 2;
 			}
 		};
 
@@ -307,7 +267,6 @@ sub Tvheadend_EPG($){
 		my $ip = $hash->{helper}{http}{ip};
 		my $port = $hash->{helper}{http}{port};
 
-		$hash->{helper}{http}{busy} = "1";
 		for (my $i=0;$i < int($count);$i+=1){
 			$hash->{helper}{http}{id} = $i;
 			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".@$entries[$i]->{nextEventId};
@@ -316,7 +275,7 @@ sub Tvheadend_EPG($){
 		return;
 
 	## SET READINGS
-	}elsif($state == 3){
+	}elsif($state == 2){
 		my $update = $hash->{helper}{epg}{update};
 		my $entriesNow = $hash->{helper}{epg}{now};
 		my $entriesNext = $hash->{helper}{epg}{next};
@@ -363,10 +322,11 @@ sub Tvheadend_ChannelQuery($){
 	my $entries;
 	my @channelData = ();
 
-	$hash->{helper}{http}{id} = "";
+	$hash->{helper}{epg}{count} = 0;
+	delete $hash->{helper}{epg}{channels} if(defined $hash->{helper}{epg}{channels});
 	$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/channel/grid";
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
-	return $err if($err);
+	($response = $err,Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),return $err) if($err);
 	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
 	($response = "Requested interface not found",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
 
@@ -381,7 +341,7 @@ sub Tvheadend_ChannelQuery($){
 
 	my $channels = join(",",@channelData);
 	$channels =~ s/ /\_/g;
-	$modules{Tvheadend}{AttrList} =~ s/queryChannel:multiple-strict.*/queryChannel:multiple-strict,all,$channels/;
+	$modules{Tvheadend}{AttrList} =~ s/EPGChannelList:multiple-strict.*/EPGChannelList:multiple-strict,all,$channels/;
 
 	$hash->{helper}{epg}{count} = @$entries;
 	$hash->{helper}{epg}{channels} = $entries;
