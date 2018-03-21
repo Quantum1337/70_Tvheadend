@@ -15,6 +15,7 @@ my %Tvheadend_sets = (
 
 my %Tvheadend_gets = (
 	"EPGQuery" => "",
+	"ChannelQuery:noArg" => "",
 );
 
 my %NoEPGEntry = (
@@ -39,6 +40,7 @@ sub Tvheadend_Initialize($) {
 
     $hash->{AttrList} =
 					"timeout " .
+					"EPGChannelList:multiple-strict,all " .
           $readingFnAttributes;
 
 }
@@ -114,6 +116,8 @@ sub Tvheadend_Get($$$) {
 
 	if($opt eq "EPGQuery"){
 		return &Tvheadend_EPGQuery($hash,@args);
+	}elsif($opt eq "ChannelQuery"){
+		return &Tvheadend_ChannelQuery($hash);
 	}else{
 		my @cList = keys %Tvheadend_gets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
@@ -348,6 +352,43 @@ sub Tvheadend_EPG($){
 
 }
 
+sub Tvheadend_ChannelQuery($){
+	my ($hash) = @_;
+
+	Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Get Channels");
+
+	my $ip = $hash->{helper}{http}{ip};
+	my $port = $hash->{helper}{http}{port};
+	my $response = "";
+	my $entries;
+	my @channelData = ();
+
+	$hash->{helper}{http}{id} = "";
+	$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/channel/grid";
+	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
+	return $err if($err);
+	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
+	($response = "Requested interface not found",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
+
+	$entries = decode_json($data)->{entries};
+
+	($response = "No Channels available",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if(int(@$entries) == 0);
+	@$entries = sort {$a->{number} <=> $b->{number}} @$entries;
+
+	for (my $i=0;$i < int(@$entries);$i+=1){
+		push(@channelData,@$entries[$i]->{name});
+	}
+
+	my $channels = join(",",@channelData);
+	$channels =~ s/ /\_/g;
+	$modules{Tvheadend}{AttrList} =~ s/queryChannel:multiple-strict.*/queryChannel:multiple-strict,all,$channels/;
+
+	$hash->{helper}{epg}{count} = @$entries;
+	$hash->{helper}{epg}{channels} = $entries;
+
+	return join("\n",@channelData);
+}
+
 sub Tvheadend_EPGQuery($$){
 	my ($hash,@args) = @_;
 
@@ -525,7 +566,8 @@ sub Tvheadend_HttpGetBlocking($){
         <br><br>
         <ul>
               <li><i>DVREntryCreate</i><br>
-                  Creates a DVR entry, derived from the EventId given with &lt;parameter&gt;.</li>
+                  Creates a DVR entry, derived from the EventId given with &lt;parameter&gt;.
+							</li>
         </ul>
     </ul>
     <br>
@@ -545,7 +587,12 @@ sub Tvheadend_HttpGetBlocking($){
 									Example: get &lt;name&gt; EPGQuery 3:tagessch<br>
 									This command will query the first three results in upcoming order, including
 									"tagessch" in the title of a tv show.
-									</li>
+							</li>
+							<li><i>ChannelQuery</i><br>
+									Queries the channel informations. Returns channels known by tvheadend. Furthermore this command
+									will update the internal channel database.
+									<br><br>
+							</li>
         </ul>
     </ul>
     <br>
