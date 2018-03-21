@@ -209,7 +209,7 @@ sub Tvheadend_EPG($){
 			$channelName = @$channels[$i]->{name};
 			$channelName =~ s/\x20/\%20/g;
 			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".encode('UTF-8',$channelName);
-			&Tvheadend_HttpGet($hash);
+			&Tvheadend_HttpGetNonblocking($hash);
 		}
 
 		return;
@@ -261,7 +261,7 @@ sub Tvheadend_EPG($){
 		for (my $i=0;$i < int(@$entries);$i+=1){
 			$hash->{helper}{http}{id} = $i;
 			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/load?eventId=".@$entries[$i]->{nextEventId};
-			&Tvheadend_HttpGet($hash);
+			&Tvheadend_HttpGetNonblocking($hash);
 		}
 		return;
 
@@ -449,8 +449,7 @@ sub Tvheadend_StringFormat($$){
 	return $result;
 }
 
-
-sub Tvheadend_HttpGet($){
+sub Tvheadend_HttpGetNonblocking($){
 	my ($hash) = @_;
 
 	HttpUtils_NonblockingGet(
@@ -555,7 +554,7 @@ sub Tvheadend_HttpGetBlocking($){
     <ul>
         <code>attr &lt;name&gt; &lt;attribute&gt; &lt;value&gt;</code>
         <br><br>
-        &lt;attribute&gt; can be one of the following: 
+        &lt;attribute&gt; can be one of the following:
         <ul>
             <li><i>timeout</i><br>
                 HTTP timeout in seconds. When not set, 5 seconds are used.
