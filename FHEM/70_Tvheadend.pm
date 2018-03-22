@@ -124,7 +124,6 @@ sub Tvheadend_Attr(@) {
 
 	}elsif($cmd eq "del"){
 
-
 	}
 
 	return undef
@@ -176,6 +175,10 @@ sub Tvheadend_EPG($){
 				@$entries[0]->{subtitle} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{subtitle});
 				@$entries[0]->{summary} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{summary});
 				@$entries[0]->{description} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{description});
+				@$entries[0]->{title} = encode('UTF-8',@$entries[0]->{title});
+				@$entries[0]->{subtitle} = encode('UTF-8',@$entries[0]->{subtitle});
+				@$entries[0]->{summary} = encode('UTF-8',@$entries[0]->{summary});
+				@$entries[0]->{description} = encode('UTF-8',@$entries[0]->{description});
 				push (@entriesNow,@$entries[0])
 			}
 
@@ -208,7 +211,7 @@ sub Tvheadend_EPG($){
 			$hash->{helper}{http}{id} = $i;
 			$channelName = @$channels[$i]->{name};
 			$channelName =~ s/\x20/\%20/g;
-			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".encode('UTF-8',$channelName);
+			$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/epg/events/grid?limit=1&channel=".$channelName;
 			&Tvheadend_HttpGetNonblocking($hash);
 		}
 
@@ -239,6 +242,10 @@ sub Tvheadend_EPG($){
 				@$entries[0]->{subtitle} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{subtitle});
 				@$entries[0]->{summary} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{summary});
 				@$entries[0]->{description} = "Keine Informationen verfügbar" if(!defined @$entries[0]->{description});
+				@$entries[0]->{title} = encode('UTF-8',@$entries[0]->{title});
+				@$entries[0]->{subtitle} = encode('UTF-8',@$entries[0]->{subtitle});
+				@$entries[0]->{summary} = encode('UTF-8',@$entries[0]->{summary});
+				@$entries[0]->{description} = encode('UTF-8',@$entries[0]->{description});
 				push (@entriesNext,@$entries[0])
 			}
 
@@ -275,24 +282,24 @@ sub Tvheadend_EPG($){
 
 		readingsBeginUpdate($hash);
 		for (my $i=0;$i < int(@$channels);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Name", encode('UTF-8',@$channels[$i]->{name})) if($items =~ /^.*ChannelName.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Number", encode('UTF-8',@$channels[$i]->{number})) if($items =~ /^.*ChannelNumber.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Name", @$channels[$i]->{name}) if($items =~ /^.*ChannelName.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{number})."Number", @$channels[$i]->{number}) if($items =~ /^.*ChannelNumber.*$/);
 		}
 		for (my $i=0;$i < int(@$entriesNow);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."TitleNow", encode('UTF-8',@$entriesNow[$i]->{title})) if($items =~ /^.*Title.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."StartTimeNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{start})))) if($items =~ /^.*StartTime.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."StopTimeNow", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNow[$i]->{stop})))) if($items =~ /^.*StopTime.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."DescriptionNow", encode('UTF-8',@$entriesNow[$i]->{description})) if($items =~ /^.*Description.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SummaryNow", encode('UTF-8',@$entriesNow[$i]->{summary})) if($items =~ /^.*Summary.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SubtitleNow", encode('UTF-8',@$entriesNow[$i]->{subtitle})) if($items =~ /^.*Subtitel.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."TitleNow", @$entriesNow[$i]->{title}) if($items =~ /^.*Title.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."StartTimeNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{start}))) if($items =~ /^.*StartTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."StopTimeNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{stop}))) if($items =~ /^.*StopTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."DescriptionNow", @$entriesNow[$i]->{description}) if($items =~ /^.*Description.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SummaryNow", @$entriesNow[$i]->{summary}) if($items =~ /^.*Summary.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelNumber})."SubtitleNow", @$entriesNow[$i]->{subtitle}) if($items =~ /^.*Subtitel.*$/);
 		}
 		for (my $i=0;$i < int(@$entriesNext);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."DescriptionNext", encode('UTF-8',@$entriesNext[$i]->{description})) if($items =~ /^.*Description.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SummaryNext", encode('UTF-8',@$entriesNext[$i]->{summary})) if($items =~ /^.*Summary.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SubtitleNext", encode('UTF-8',@$entriesNext[$i]->{subtitle})) if($items =~ /^.*Subtitel.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."TitleNext", encode('UTF-8',@$entriesNext[$i]->{title})) if($items =~ /^.*Title.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."StartTimeNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{start})))) if($items =~ /^.*StartTime.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."StopTimeNext", strftime("%H:%M:%S",localtime(encode('UTF-8',@$entriesNext[$i]->{stop})))) if($items =~ /^.*StopTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."DescriptionNext", @$entriesNext[$i]->{description}) if($items =~ /^.*Description.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SummaryNext", @$entriesNext[$i]->{summary}) if($items =~ /^.*Summary.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."SubtitleNext", @$entriesNext[$i]->{subtitle}) if($items =~ /^.*Subtitel.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."TitleNext", @$entriesNext[$i]->{title}) if($items =~ /^.*Title.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."StartTimeNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{start}))) if($items =~ /^.*StartTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelNumber})."StopTimeNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{stop}))) if($items =~ /^.*StopTime.*$/);
 		}
 		readingsEndUpdate($hash, 1);
 
@@ -313,10 +320,11 @@ sub Tvheadend_ChannelQuery($){
 	my $port = $hash->{helper}{http}{port};
 	my $response = "";
 	my $entries;
-	my @channelData = ();
+	my @channelNames = ();
 
 	$hash->{helper}{epg}{count} = 0;
 	delete $hash->{helper}{epg}{channels} if(defined $hash->{helper}{epg}{channels});
+
 	$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/channel/grid";
 	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
 	($response = $err,Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $err"),return $err) if($err);
@@ -329,17 +337,18 @@ sub Tvheadend_ChannelQuery($){
 	@$entries = sort {$a->{number} <=> $b->{number}} @$entries;
 
 	for (my $i=0;$i < int(@$entries);$i+=1){
-		push(@channelData,@$entries[$i]->{name});
+		@$entries[$i]->{name} = encode('UTF-8',@$entries[$i]->{name});
+		push(@channelNames,@$entries[$i]->{name});
 	}
 
-	my $channels = join(",",@channelData);
-	$channels =~ s/ /\_/g;
-	$modules{Tvheadend}{AttrList} =~ s/EPGChannelList:multiple-strict.*/EPGChannelList:multiple-strict,all,$channels/;
+	my $channelNames = join(",",@channelNames);
+	$channelNames =~ s/ /\_/g;
+	$modules{Tvheadend}{AttrList} =~ s/EPGChannelList:multiple-strict.*/EPGChannelList:multiple-strict,all,$channelNames/;
 
 	$hash->{helper}{epg}{count} = @$entries;
 	$hash->{helper}{epg}{channels} = $entries;
 
-	return join("\n",@channelData);
+	return join("\n",@channelNames);
 }
 
 sub Tvheadend_EPGQuery($$){
@@ -486,6 +495,7 @@ sub Tvheadend_HttpGetBlocking($){
 
 =pod
 =begin html
+
 <a name="Tvheadend"></a>
 <h3>Tvheadend</h3>
 <ul>
