@@ -32,6 +32,8 @@ sub Tvheadend_Initialize($) {
     $hash->{AttrList} =
 					"timeout " .
 					"EPGVisibleItems:multiple-strict,Title,Subtitle,Summary,Description,ChannelName,ChannelNumber,StartTime,StopTime " .
+					"PollingQueries:multiple-strict,ConnectionQuery " .
+					"PollingIntervall " .
 					"EPGChannelList:multiple-strict,all " .
           $readingFnAttributes;
 
@@ -76,6 +78,11 @@ sub Tvheadend_Define($$$) {
 	if($init_done){
 		Tvheadend_ChannelQuery($hash);
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
+
+		if(AttrVal($hash->{NAME},"PollingQueries","") =~ /^.*ConnectionQuery.*$/){
+			InternalTimer(gettimeofday(),"Tvheadend_ConnectionQuery",$hash);
+			Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - ConnectionQuery will be polled with an intervall of ".AttrVal($hash->{NAME},"PollingIntervall",60)."s");
+		}
 	}
 
 	$hash->{STATE} = "Initialized";
@@ -156,11 +163,29 @@ sub Tvheadend_Attr(@) {
 			if($attr_value !~ /^.*ChannelNumber.*$/){
 				fhem("deletereading $name channel[0-9]+Number");
 			}
+		}elsif($attr_name eq "PollingQueries"){
+			my $hash = $defs{$name};
+
+			if($attr_value =~ /^.*ConnectionQuery.*$/){
+				if($init_done){
+					InternalTimer(gettimeofday(),"Tvheadend_ConnectionQuery",$hash);
+					Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - ConnectionQuery will be polled with an intervall of ".AttrVal($hash->{NAME},"PollingIntervall",60)."s");
+				}
+			}elsif($attr_value !~ /^.*ConnectionQuery.*$/){
+				RemoveInternalTimer($hash,"Tvheadend_ConnectionQuery");
+				Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - ConnectionQuery won't be polled anymore");
+			}
 		}
 
 	}elsif($cmd eq "del"){
 		if($attr_name eq "EPGVisibleItems"){
 			fhem("deletereading $name channel[0-9]+.*");
+		}
+		if($attr_name eq "PollingQueries"){
+			my $hash = $defs{$name};
+			fhem("deletereading $name connections.*");
+			RemoveInternalTimer($hash,"Tvheadend_ConnectionQuery");
+			Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - ConnectionQuery won't be polled anymore");
 		}
 	}
 
@@ -179,6 +204,11 @@ sub Tvheadend_Notify($$){
 	if($dev_hash->{NAME} eq "global" && grep(m/^INITIALIZED|REREADCFG$/, @{$events})){
 		Tvheadend_ChannelQuery($own_hash);
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$own_hash);
+
+		if(AttrVal($own_hash->{NAME},"PollingQueries","") =~ /^.*ConnectionQuery.*$/){
+			InternalTimer(gettimeofday(),"Tvheadend_ConnectionQuery",$own_hash);
+			Log3($own_hash->{NAME},3,"$own_hash->{TYPE} $own_hash->{NAME} - ConnectionQuery will be polled with an intervall of ".AttrVal($own_hash->{NAME},"PollingIntervall",60). "s");
+		}
 	}
 
 	return
@@ -443,6 +473,9 @@ sub Tvheadend_EPGQuery($$){
 sub Tvheadend_ConnectionQuery($){
 	my ($hash,@args) = @_;
 
+	Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Query connections");
+
+
 	my $ip = $hash->{helper}{http}{ip};
 	my $port = $hash->{helper}{http}{port};
 	my $entries;
@@ -455,21 +488,51 @@ sub Tvheadend_ConnectionQuery($){
 	($response = "Requested interface not found",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
 
 	$entries = decode_json($data)->{entries};
-	($response = "ConnectedPeers: 0",return $response) if(!defined @$entries[0]);
 
-	$response = "ConnectedPeers: ".@$entries."\n".
-							"-------------------------"."\n";
-	for (my $i=0;$i < int(@$entries);$i+=1){
+	if(!defined @$entries[0]){
+		$response = "ConnectedPeers: 0";
+
+		if(AttrVal($hash->{NAME},"PollingQueries","") =~ /^.*ConnectionQuery.*$/){
+			readingsBeginUpdate($hash);
+			readingsBulkUpdateIfChanged($hash, "connectionsTotal", "0");
+			readingsBulkUpdateIfChanged($hash, "connectionsId", "-");
+			readingsBulkUpdateIfChanged($hash, "connectionsUser", "-");
+			readingsBulkUpdateIfChanged($hash, "connectionsStartTime", "-");
+			readingsBulkUpdateIfChanged($hash, "connectionsPeer", "-");
+			readingsBulkUpdateIfChanged($hash, "connectionsType", "-");
+			readingsEndUpdate($hash, 1);
+
+			InternalTimer(gettimeofday()+AttrVal($hash->{NAME},"PollingIntervall",60),"Tvheadend_ConnectionQuery",$hash);
+		}
+	}else{
+		@$entries = sort {$a->{started} <=> $b->{started}} @$entries;
+
+		$response = "ConnectedPeers: ".@$entries."\n".
+								"-------------------------"."\n";
+		for (my $i=0;$i < int(@$entries);$i+=1){
 		$response .= "Id: ".@$entries[$i]->{id} ."\n".
 								"User: ".encode('UTF-8',@$entries[$i]->{user})."\n".
 								"StartTime: ".strftime("%H:%M:%S",localtime(encode('UTF-8',@$entries[$i]->{started}))) ." Uhr\n".
 								"Peer: ".encode('UTF-8',@$entries[$i]->{peer})."\n".
 								"Type: ".encode('UTF-8',@$entries[$i]->{type})."\n".
 								"-------------------------"."\n";
+		}
+
+		if(AttrVal($hash->{NAME},"PollingQueries","") =~ /^.*ConnectionQuery.*$/){
+			readingsBeginUpdate($hash);
+			readingsBulkUpdateIfChanged($hash, "connectionsTotal", @$entries);
+			readingsBulkUpdateIfChanged($hash, "connectionsId", join(",",(my @ids = map {$_->{id}}@$entries)));
+			readingsBulkUpdateIfChanged($hash, "connectionsUser", encode('UTF-8',join(",",(my @users = map {$_->{user}}@$entries))));
+			readingsBulkUpdateIfChanged($hash, "connectionsStartTime", encode('UTF-8',join(",",(my @startTimes = map {$_->{started}}@$entries))));
+			readingsBulkUpdateIfChanged($hash, "connectionsPeer", encode('UTF-8',join(",",(my @peer = map {$_->{peer}}@$entries))));
+			readingsBulkUpdateIfChanged($hash, "connectionsType", encode('UTF-8',join(",",(my @type = map {$_->{type}}@$entries))));
+			readingsEndUpdate($hash, 1);
+
+			InternalTimer(gettimeofday()+AttrVal($hash->{NAME},"PollingIntervall",60),"Tvheadend_ConnectionQuery",$hash);
+		}
 	}
 
 	return $response;
-
 }
 
 sub Tvheadend_DVREntryCreate($$){
@@ -649,12 +712,23 @@ sub Tvheadend_HttpGetBlocking($){
         &lt;attribute&gt; can be one of the following:
         <ul>
             <li><i>timeout</i><br>
-                HTTP timeout in seconds. When not set, 5 seconds are used.
+                HTTP timeout in seconds.<br>
+								Standardvalue: 5s
             </li>
 						<li><i>EPGVisibleItems</i><br>
                 Selectable list of epg items. Items selected will generate
 								readings. The readings will be generated, next time the EPG is triggered.
-								When an item becomes unselected, the specific readings will be deleted also.
+								When an item becomes unselected, the specific readings will be deleted.
+            </li>
+						<li><i>PollingQueries</i><br>
+                Selectable list of queries, that can be polled. When enabled the polling of the specific
+								query starts immediately with an intervall given with the attribute PollingIntervall.
+								When a query is in polling mode, readings will be created. When the polling will be disabled,
+								the readings will be deleted.
+            </li>
+						<li><i>PollingIntervalls</i><br>
+								Intervall of polling a query. See PollingQueries for further details.<br>
+								Standardvalue: 60s
             </li>
         </ul>
     </ul>
