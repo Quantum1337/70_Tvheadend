@@ -16,6 +16,7 @@ my %Tvheadend_sets = (
 my %Tvheadend_gets = (
 	"EPGQuery" => "",
 	"ChannelQuery:noArg" => "",
+	"ConnectionQuery:noArg" => "",
 );
 
 sub Tvheadend_Initialize($) {
@@ -110,6 +111,8 @@ sub Tvheadend_Get($$$) {
 		return &Tvheadend_EPGQuery($hash,@args);
 	}elsif($opt eq "ChannelQuery"){
 		return &Tvheadend_ChannelQuery($hash);
+	}elsif($opt eq "ConnectionQuery"){
+		return &Tvheadend_ConnectionQuery($hash);
 	}else{
 		my @cList = keys %Tvheadend_gets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
@@ -437,6 +440,38 @@ sub Tvheadend_EPGQuery($$){
 
 }
 
+sub Tvheadend_ConnectionQuery($){
+	my ($hash,@args) = @_;
+
+	my $ip = $hash->{helper}{http}{ip};
+	my $port = $hash->{helper}{http}{port};
+	my $entries;
+	my $response = "";
+
+	$hash->{helper}{http}{url} = "http://".$ip.":".$port."/api/status/connections";
+	my ($err, $data) = &Tvheadend_HttpGetBlocking($hash);
+	return $err if($err);
+	($response = "Server needs authentication",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*401 Unauthorized.*/s);
+	($response = "Requested interface not found",Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - $response"),return $response) if($data =~ /^.*404 Not Found.*/s);
+
+	$entries = decode_json($data)->{entries};
+	($response = "ConnectedPeers: 0",return $response) if(!defined @$entries[0]);
+
+	$response = "ConnectedPeers: ".@$entries."\n".
+							"-------------------------"."\n";
+	for (my $i=0;$i < int(@$entries);$i+=1){
+		$response .= "Id: ".@$entries[$i]->{id} ."\n".
+								"User: ".encode('UTF-8',@$entries[$i]->{user})."\n".
+								"StartTime: ".strftime("%H:%M:%S",localtime(encode('UTF-8',@$entries[$i]->{started}))) ." Uhr\n".
+								"Peer: ".encode('UTF-8',@$entries[$i]->{peer})."\n".
+								"Type: ".encode('UTF-8',@$entries[$i]->{type})."\n".
+								"-------------------------"."\n";
+	}
+
+	return $response;
+
+}
+
 sub Tvheadend_DVREntryCreate($$){
 	my ($hash,@args) = @_;
 
@@ -597,7 +632,10 @@ sub Tvheadend_HttpGetBlocking($){
 							<li><i>ChannelQuery</i><br>
 									Queries the channel informations. Returns channels known by tvheadend. Furthermore this command
 									will update the internal channel database.
-									<br><br>
+							</li>
+							<li><i>ConnectionQuery</i><br>
+									Queries informations about active connections. Returns the count of actual connected peers and some
+									additional informations of each peer.
 							</li>
         </ul>
     </ul>
