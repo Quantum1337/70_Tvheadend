@@ -653,7 +653,8 @@ sub Tvheadend_HttpGetBlocking($){
             </li>
 						<li><i>EPGVisibleItems</i><br>
                 Selectable list of epg items. Items selected will generate
-								readings. The readings will be updated, when a new EPG entry is available.
+								readings. The readings will be generated, next time the EPG is triggered.
+								When an item becomes unselected, the specific readings will be deleted also.
             </li>
         </ul>
     </ul>
