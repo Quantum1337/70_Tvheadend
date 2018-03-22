@@ -122,8 +122,43 @@ sub Tvheadend_Attr(@) {
 
 	if($cmd eq "set") {
 
-	}elsif($cmd eq "del"){
+		if($attr_name eq "EPGVisibleItems"){
+			if($attr_value !~ /^.*Title.*$/){
+				fhem("deletereading $name channel[0-9]+TitleNow");
+				fhem("deletereading $name channel[0-9]+TitleNext");
+			}
+			if($attr_value !~ /^.*Subtitle.*$/){
+				fhem("deletereading $name channel[0-9]+SubtitleNow");
+				fhem("deletereading $name channel[0-9]+SubtitleNext");
+			}
+			if($attr_value !~ /^.*Summary.*$/){
+				fhem("deletereading $name channel[0-9]+SummaryNow");
+				fhem("deletereading $name channel[0-9]+SummaryNext");
+			}
+			if($attr_value !~ /^.*Description.*$/){
+				fhem("deletereading $name channel[0-9]+DescriptionNow");
+				fhem("deletereading $name channel[0-9]+DescriptionNext");
+			}
+			if($attr_value !~ /^.*StartTime.*$/){
+				fhem("deletereading $name channel[0-9]+StartTimeNow");
+				fhem("deletereading $name channel[0-9]+StartTimeNext");
+			}
+			if($attr_value !~ /^.*StopTime.*$/){
+				fhem("deletereading $name channel[0-9]+StopTimeNow");
+				fhem("deletereading $name channel[0-9]+StopTimeNext");
+			}
+			if($attr_value !~ /^.*ChannelName.*$/){
+				fhem("deletereading $name channel[0-9]+Name");
+			}
+			if($attr_value !~ /^.*ChannelNumber.*$/){
+				fhem("deletereading $name channel[0-9]+Number");
+			}
+		}
 
+	}elsif($cmd eq "del"){
+		if($attr_name eq "EPGVisibleItems"){
+			fhem("deletereading $name channel[0-9]+.*");
+		}
 	}
 
 	return undef
