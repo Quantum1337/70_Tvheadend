@@ -30,7 +30,7 @@ sub Tvheadend_Initialize($) {
     $hash->{NotifyFn}   = 'Tvheadend_Notify';
 
     $hash->{AttrList} =
-					"timeout " .
+					"HTTPTimeout " .
 					"EPGVisibleItems:multiple-strict,Title,Subtitle,Summary,Description,ChannelName,ChannelNumber,StartTime,StopTime " .
 					"PollingQueries:multiple-strict,ConnectionQuery " .
 					"PollingIntervall " .
@@ -179,6 +179,10 @@ sub Tvheadend_Attr(@) {
 				fhem("deletereading $name connections.*");
 				RemoveInternalTimer($hash,"Tvheadend_ConnectionQuery");
 				Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - ConnectionQuery won't be polled anymore");
+			}
+		}elsif($attr_name eq "HTTPTimeout"){
+			if(($attr_value !~ /^[0-9]+$/) || ($attr_value < 1 || $attr_value > 60)){
+				return "$attr_name must be nummeric an between 5 and 60 seconds"
 			}
 		}
 
@@ -612,7 +616,7 @@ sub Tvheadend_HttpGetNonblocking($){
 		{
 				method     => "GET",
 				url        => $hash->{helper}{http}{url},
-				timeout    => AttrVal($hash->{NAME},"timeout","5"),
+				timeout    => AttrVal($hash->{NAME},"HTTPTimeout","5"),
 				user			 => $hash->{helper}{http}{username},
 				pwd				 => $hash->{helper}{http}{password},
 				noshutdown => "1",
@@ -630,7 +634,7 @@ sub Tvheadend_HttpGetBlocking($){
 		{
 				method     => "GET",
 				url        => $hash->{helper}{http}{url},
-				timeout    => AttrVal($hash->{NAME},"timeout","5"),
+				timeout    => AttrVal($hash->{NAME},"HTTPTimeout","5"),
 				user			 => $hash->{helper}{http}{username},
 				pwd				 => $hash->{helper}{http}{password},
 				noshutdown => "1",
@@ -716,9 +720,10 @@ sub Tvheadend_HttpGetBlocking($){
         <br><br>
         &lt;attribute&gt; can be one of the following:
         <ul>
-            <li><i>timeout</i><br>
+            <li><i>HTTPTimeout</i><br>
                 HTTP timeout in seconds.<br>
-								Standardvalue: 5s
+								Standardvalue: 5s<br>
+								Range: 1s-60s
             </li>
 						<li><i>EPGVisibleItems</i><br>
                 Selectable list of epg items. Items selected will generate
