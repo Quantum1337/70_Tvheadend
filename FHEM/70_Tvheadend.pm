@@ -103,7 +103,11 @@ sub Tvheadend_Set($$$) {
 	if($opt eq "EPG"){
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 	}elsif($opt eq "DVREntryCreate"){
-		&Tvheadend_DVREntryCreate($hash,@args);
+		if($args[0] =~ /^[0-9]+$/){
+			&Tvheadend_DVREntryCreate($hash,@args);
+		}else{
+			return "EventId must be numeric"
+		}
 	}else{
 		my @cList = keys %Tvheadend_sets;
 		return "Unknown command $opt, choose one of " . join(" ", @cList);
