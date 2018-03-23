@@ -92,6 +92,7 @@ sub Tvheadend_Undef($$) {
 	my ($hash, $arg) = @_;
 
 	RemoveInternalTimer($hash,"Tvheadend_EPG");
+	RemoveInternalTimer($hash,"Tvheadend_ConnectionQuery");
 
 	return undef;
 }
