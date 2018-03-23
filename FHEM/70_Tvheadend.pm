@@ -176,6 +176,7 @@ sub Tvheadend_Attr(@) {
 					Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - ConnectionQuery will be polled with an intervall of ".AttrVal($hash->{NAME},"PollingIntervall",60)."s");
 				}
 			}elsif($attr_value !~ /^.*ConnectionQuery.*$/){
+				fhem("deletereading $name connections.*");
 				RemoveInternalTimer($hash,"Tvheadend_ConnectionQuery");
 				Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - ConnectionQuery won't be polled anymore");
 			}
