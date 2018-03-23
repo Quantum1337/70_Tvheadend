@@ -76,7 +76,6 @@ sub Tvheadend_Define($$$) {
 	$state = 0;
 
 	if($init_done){
-		Tvheadend_ChannelQuery($hash);
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
 
 		if(AttrVal($hash->{NAME},"PollingQueries","") =~ /^.*ConnectionQuery.*$/){
@@ -138,34 +137,34 @@ sub Tvheadend_Attr(@) {
 
 		if($attr_name eq "EPGVisibleItems"){
 			if($attr_value !~ /^.*Title.*$/){
-				fhem("deletereading $name channel[0-9]+TitleNow");
-				fhem("deletereading $name channel[0-9]+TitleNext");
+				fhem("deletereading $name epg[0-9]+TitleNow");
+				fhem("deletereading $name epg[0-9]+TitleNext");
 			}
 			if($attr_value !~ /^.*Subtitle.*$/){
-				fhem("deletereading $name channel[0-9]+SubtitleNow");
-				fhem("deletereading $name channel[0-9]+SubtitleNext");
+				fhem("deletereading $name epg[0-9]+SubtitleNow");
+				fhem("deletereading $name epg[0-9]+SubtitleNext");
 			}
 			if($attr_value !~ /^.*Summary.*$/){
-				fhem("deletereading $name channel[0-9]+SummaryNow");
-				fhem("deletereading $name channel[0-9]+SummaryNext");
+				fhem("deletereading $name epg[0-9]+SummaryNow");
+				fhem("deletereading $name epg[0-9]+SummaryNext");
 			}
 			if($attr_value !~ /^.*Description.*$/){
-				fhem("deletereading $name channel[0-9]+DescriptionNow");
-				fhem("deletereading $name channel[0-9]+DescriptionNext");
+				fhem("deletereading $name epg[0-9]+DescriptionNow");
+				fhem("deletereading $name epg[0-9]+DescriptionNext");
 			}
 			if($attr_value !~ /^.*StartTime.*$/){
-				fhem("deletereading $name channel[0-9]+StartTimeNow");
-				fhem("deletereading $name channel[0-9]+StartTimeNext");
+				fhem("deletereading $name epg[0-9]+StartTimeNow");
+				fhem("deletereading $name epg[0-9]+StartTimeNext");
 			}
 			if($attr_value !~ /^.*StopTime.*$/){
-				fhem("deletereading $name channel[0-9]+StopTimeNow");
-				fhem("deletereading $name channel[0-9]+StopTimeNext");
+				fhem("deletereading $name epg[0-9]+StopTimeNow");
+				fhem("deletereading $name epg[0-9]+StopTimeNext");
 			}
 			if($attr_value !~ /^.*ChannelName.*$/){
-				fhem("deletereading $name channel[0-9]+Name");
+				fhem("deletereading $name epg[0-9]+ChannelName");
 			}
 			if($attr_value !~ /^.*ChannelNumber.*$/){
-				fhem("deletereading $name channel[0-9]+Number");
+				fhem("deletereading $name epg[0-9]+ChannelNumber");
 			}
 		}elsif($attr_name eq "PollingQueries"){
 			my $hash = $defs{$name};
@@ -188,7 +187,7 @@ sub Tvheadend_Attr(@) {
 
 	}elsif($cmd eq "del"){
 		if($attr_name eq "EPGVisibleItems"){
-			fhem("deletereading $name channel[0-9]+.*");
+			fhem("deletereading $name epg[0-9]+.*");
 		}
 		if($attr_name eq "PollingQueries"){
 			my $hash = $defs{$name};
@@ -211,7 +210,6 @@ sub Tvheadend_Notify($$){
 	my $events = deviceEvents($dev_hash, 1);
 
 	if($dev_hash->{NAME} eq "global" && grep(m/^INITIALIZED|REREADCFG$/, @{$events})){
-		Tvheadend_ChannelQuery($own_hash);
 		InternalTimer(gettimeofday(),"Tvheadend_EPG",$own_hash);
 
 		if(AttrVal($own_hash->{NAME},"PollingQueries","") =~ /^.*ConnectionQuery.*$/){
@@ -226,10 +224,20 @@ sub Tvheadend_Notify($$){
 sub Tvheadend_EPG($){
 	my ($hash) = @_;
 
-	(Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Can't get EPG data, because no channels defined"),return) if($hash->{helper}{epg}{count} == 0);
-
-	#GET NOW
+	#Get Channels
 	if($state == 0){
+		Tvheadend_ChannelQuery($hash);
+		if($hash->{helper}{epg}{count} == 0){
+			Log3($hash->{NAME},3,"$hash->{TYPE} $hash->{NAME} - Can't get EPG data, because no channels defined");
+			return;
+		}else{
+			Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
+			$state = 1;
+			InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
+		}
+
+	#Get Now
+	}elsif($state == 1){
 		my $count = $hash->{helper}{epg}{count};
 		my @entriesNow = ();
 
@@ -275,8 +283,8 @@ sub Tvheadend_EPG($){
 				}
 
 				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
-				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 1");
-				$state = 1;
+				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
+				$state = 2;
 			}
 
 		};
@@ -299,7 +307,7 @@ sub Tvheadend_EPG($){
 		return;
 
 	## GET NEXT
-	}elsif($state == 1){
+	}elsif($state == 2){
 
 		my @entriesNext = ();
 		my $count = $hash->{helper}{epg}{count};
@@ -339,8 +347,8 @@ sub Tvheadend_EPG($){
 				$hash->{helper}{epg}{count} = $count;
 
 				InternalTimer(gettimeofday(),"Tvheadend_EPG",$hash);
-				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 2");
-				$state = 2;
+				Log3($hash->{NAME},4,"$hash->{TYPE} $hash->{NAME} - Set State 3");
+				$state = 3;
 			}
 		};
 
@@ -358,7 +366,7 @@ sub Tvheadend_EPG($){
 		return;
 
 	## SET READINGS
-	}elsif($state == 2){
+	}elsif($state == 3){
 		my $update = $hash->{helper}{epg}{update};
 		my $entriesNow = $hash->{helper}{epg}{now};
 		my $entriesNext = $hash->{helper}{epg}{next};
@@ -367,24 +375,24 @@ sub Tvheadend_EPG($){
 
 		readingsBeginUpdate($hash);
 		for (my $i=0;$i < int(@$channels);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{id})."Name", @$channels[$i]->{name}) if($items =~ /^.*ChannelName.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$channels[$i]->{id})."Number", @$channels[$i]->{number}) if($items =~ /^.*ChannelNumber.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$channels[$i]->{id})."ChannelName", @$channels[$i]->{name}) if($items =~ /^.*ChannelName.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$channels[$i]->{id})."ChannelNumber", @$channels[$i]->{number}) if($items =~ /^.*ChannelNumber.*$/);
 		}
 		for (my $i=0;$i < int(@$entriesNow);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelId})."TitleNow", @$entriesNow[$i]->{title}) if($items =~ /^.*Title.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelId})."StartTimeNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{start}))) if($items =~ /^.*StartTime.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelId})."StopTimeNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{stop}))) if($items =~ /^.*StopTime.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelId})."DescriptionNow", @$entriesNow[$i]->{description}) if($items =~ /^.*Description.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelId})."SummaryNow", @$entriesNow[$i]->{summary}) if($items =~ /^.*Summary.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNow[$i]->{channelId})."SubtitleNow", @$entriesNow[$i]->{subtitle}) if($items =~ /^.*Subtitel.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNow[$i]->{channelId})."TitleNow", @$entriesNow[$i]->{title}) if($items =~ /^.*Title.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNow[$i]->{channelId})."StartTimeNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{start}))) if($items =~ /^.*StartTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNow[$i]->{channelId})."StopTimeNow", strftime("%H:%M:%S",localtime(@$entriesNow[$i]->{stop}))) if($items =~ /^.*StopTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNow[$i]->{channelId})."DescriptionNow", @$entriesNow[$i]->{description}) if($items =~ /^.*Description.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNow[$i]->{channelId})."SummaryNow", @$entriesNow[$i]->{summary}) if($items =~ /^.*Summary.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNow[$i]->{channelId})."SubtitleNow", @$entriesNow[$i]->{subtitle}) if($items =~ /^.*Subtitel.*$/);
 		}
 		for (my $i=0;$i < int(@$entriesNext);$i+=1){
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelId})."DescriptionNext", @$entriesNext[$i]->{description}) if($items =~ /^.*Description.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelId})."SummaryNext", @$entriesNext[$i]->{summary}) if($items =~ /^.*Summary.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelId})."SubtitleNext", @$entriesNext[$i]->{subtitle}) if($items =~ /^.*Subtitel.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelId})."TitleNext", @$entriesNext[$i]->{title}) if($items =~ /^.*Title.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelId})."StartTimeNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{start}))) if($items =~ /^.*StartTime.*$/);
-			readingsBulkUpdateIfChanged($hash, "channel".sprintf("%03d", @$entriesNext[$i]->{channelId})."StopTimeNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{stop}))) if($items =~ /^.*StopTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNext[$i]->{channelId})."DescriptionNext", @$entriesNext[$i]->{description}) if($items =~ /^.*Description.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNext[$i]->{channelId})."SummaryNext", @$entriesNext[$i]->{summary}) if($items =~ /^.*Summary.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNext[$i]->{channelId})."SubtitleNext", @$entriesNext[$i]->{subtitle}) if($items =~ /^.*Subtitel.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNext[$i]->{channelId})."TitleNext", @$entriesNext[$i]->{title}) if($items =~ /^.*Title.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNext[$i]->{channelId})."StartTimeNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{start}))) if($items =~ /^.*StartTime.*$/);
+			readingsBulkUpdateIfChanged($hash, "epg".sprintf("%03d", @$entriesNext[$i]->{channelId})."StopTimeNext", strftime("%H:%M:%S",localtime(@$entriesNext[$i]->{stop}))) if($items =~ /^.*StopTime.*$/);
 		}
 		readingsEndUpdate($hash, 1);
 
@@ -511,6 +519,7 @@ sub Tvheadend_ConnectionQuery($){
 			readingsBulkUpdateIfChanged($hash, "connectionsType", "-");
 			readingsEndUpdate($hash, 1);
 
+			RemoveInternalTimer($hash,"Tvheadend_ConnectionQuery");
 			InternalTimer(gettimeofday()+AttrVal($hash->{NAME},"PollingIntervall",60),"Tvheadend_ConnectionQuery",$hash);
 		}
 	}else{
@@ -537,6 +546,7 @@ sub Tvheadend_ConnectionQuery($){
 			readingsBulkUpdateIfChanged($hash, "connectionsType", encode('UTF-8',join(",",(my @type = map {$_->{type}}@$entries))));
 			readingsEndUpdate($hash, 1);
 
+			RemoveInternalTimer($hash,"Tvheadend_ConnectionQuery");
 			InternalTimer(gettimeofday()+AttrVal($hash->{NAME},"PollingIntervall",60),"Tvheadend_ConnectionQuery",$hash);
 		}
 	}
